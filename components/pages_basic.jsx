@@ -16,7 +16,7 @@ function HomePage() {
           </div>
           <h1 style={{ maxWidth: "20ch", marginBottom: 32 }}>
             {lang === "en" ? (
-              <>Hormone-driven cancer, <em style={{ fontStyle: "italic", color: "var(--accent)" }}>rewired</em> by aging — and the molecules that intervene.</>
+              <>Where traditional medicine, <em style={{ fontStyle: "italic", color: "var(--accent)" }}> meets </em> molecular oncology.</>
             ) : (
               <>激素依赖肿瘤、<em style={{ fontStyle: "italic", color: "var(--accent)" }}>衰老调控</em> 与靶向干预的分子图谱。</>
             )}
