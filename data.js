@@ -1,3 +1,67 @@
+// Supabase 连接配置
+const SUPABASE_URL = "https://njegvvkcjrmbfucbpfsx.supabase.co";
+const SUPABASE_KEY = "sb_publishable_JKb4AOE23CDdJ2inbEV9-g_oKH-5-2a";
+
+window.SUPABASE = {
+  url: SUPABASE_URL,
+  key: SUPABASE_KEY,
+
+  async query(table, options = {}) {
+    let url = `${SUPABASE_URL}/rest/v1/${table}?`;
+    if (options.select) url += `select=${options.select}&`;
+    if (options.filter) url += `${options.filter}&`;
+    if (options.order) url += `order=${options.order}&`;
+    if (options.limit) url += `limit=${options.limit}&`;
+    const res = await fetch(url, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json"
+      }
+    });
+    return res.json();
+  },
+
+  async insert(table, data) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  async update(table, id, data) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  async remove(table, id) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method: "DELETE",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    return res.ok;
+  }
+};
+
 // Yuanlab — seed data. All in-memory; in a real build this comes from your backend.
 
 window.LAB_DATA = {
