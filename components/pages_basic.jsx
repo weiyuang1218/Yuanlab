@@ -35,7 +35,7 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Hero figure: composite team placeholder */}
+      {/* Hero figure */}
       <section style={{ padding: "0", borderBottom: "1px solid var(--line)" }}>
         <div className="container" style={{ padding: "32px 32px 0" }}>
           <div className="placeholder" style={{ height: 360, fontSize: 12 }}>
@@ -97,8 +97,18 @@ function HomePage() {
           <div>
             <SectionHeader eyebrow="02 / News" title={t.home.latestNews} action={null} />
             <div style={{ display: "flex", flexDirection: "column" }}>
+              {news.length === 0 && (
+                <p style={{ fontSize: 14, color: "var(--ink-3)" }}>
+                  {lang === "en" ? "No news yet." : "暂无动态。"}
+                </p>
+              )}
               {news.map((n, i) => (
                 <div key={i} style={{ padding: "16px 0", borderBottom: "1px solid var(--line)" }}>
+                  {n.pinned && (
+                    <span className="chip accent" style={{ marginBottom: 6, fontSize: 11 }}>
+                      {lang === "en" ? "Pinned" : "置顶"}
+                    </span>
+                  )}
                   <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.06em", marginBottom: 6 }}>{n.date}</div>
                   <p style={{ fontSize: 14, color: "var(--ink)", margin: 0, lineHeight: 1.5 }}>{n[lang]}</p>
                 </div>
@@ -136,11 +146,16 @@ function PubRow({ pub, index }) {
       <div>
         <h3 style={{ fontSize: 19, marginBottom: 8, lineHeight: 1.35, maxWidth: "70ch" }}>{pub.title}</h3>
         <p style={{ fontSize: 13.5, color: "var(--ink-2)", margin: 0 }}>{pub.authors}</p>
-        <p style={{ fontSize: 13, color: "var(--ink-3)", margin: "4px 0 0", fontStyle: "italic" }}>{pub.journal} · {pub.volume}</p>
+        <p style={{ fontSize: 13, color: "var(--ink-3)", margin: "4px 0 0", fontStyle: "italic" }}>{pub.journal}{pub.volume ? " · " + pub.volume : ""}</p>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-        <span className="chip accent">{pub.tag}</span>
-        {pub.doi && <a href="#" onClick={(e) => e.preventDefault()} className="btn btn-text btn-sm" style={{ fontSize: 12 }}>DOI <Icon.external /></a>}
+        {pub.tag && <span className="chip accent">{pub.tag}</span>}
+        {pub.doi && (
+          <a href={"https://doi.org/" + pub.doi} target="_blank" rel="noopener noreferrer"
+            className="btn btn-text btn-sm" style={{ fontSize: 12 }}>
+            DOI <Icon.external />
+          </a>
+        )}
       </div>
     </article>
   );
@@ -148,7 +163,7 @@ function PubRow({ pub, index }) {
 
 // ---------- Research ----------
 function ResearchPage() {
-  const { lang, t } = useApp();
+  const { lang } = useApp();
   const D = window.LAB_DATA;
   return (
     <div className="page-fade container" style={{ padding: "64px 32px 0" }}>
@@ -190,7 +205,7 @@ function ResearchPage() {
 
 // ---------- Join Us ----------
 function JoinPage() {
-  const { lang, t } = useApp();
+  const { lang } = useApp();
   const D = window.LAB_DATA;
   const items = D.joinUs[lang];
   return (
@@ -227,15 +242,42 @@ function JoinPage() {
   );
 }
 
-// ---------- Contact ----------
+// ---------- Contact (with Supabase form submission) ----------
 function ContactPage() {
-  const { lang } = useApp();
+  const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
+  const [form, setForm] = useState({ name: "", email: "", subject: "", body: "" });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.name || !form.email || !form.body) return;
+    setSending(true);
+    try {
+      await window.SUPABASE.insert("messages", {
+        name: form.name,
+        email: form.email,
+        subject: form.subject,
+        body: form.body,
+      });
+      setSent(true);
+      setForm({ name: "", email: "", subject: "", body: "" });
+      addToast(lang === "en" ? "Message sent!" : "消息已发送！");
+    } catch (err) {
+      addToast(lang === "en" ? "Failed to send. Please email us directly." : "发送失败，请直接发邮件联系。");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div className="page-fade container" style={{ padding: "64px 32px 0" }}>
       <div className="eyebrow" style={{ marginBottom: 16 }}>Contact</div>
       <h1 style={{ marginBottom: 56 }}>{lang === "en" ? "Get in touch." : "与我们联系。"}</h1>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64 }}>
+
+        {/* Left: contact info */}
         <div>
           <div style={{ borderTop: "1px solid var(--ink)", padding: "20px 0", borderBottom: "1px solid var(--line)" }}>
             <div className="eyebrow" style={{ marginBottom: 6 }}>Address · 地址</div>
@@ -258,8 +300,63 @@ function ContactPage() {
             </p>
           </div>
         </div>
-        <div className="placeholder" style={{ minHeight: 360 }}>
-          MAP · ZHANGJIANG · SHUTCM CAMPUS
+
+        {/* Right: contact form */}
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 16 }}>
+            {lang === "en" ? "Send us a message" : "发送消息"}
+          </div>
+          {sent ? (
+            <div style={{ padding: 24, background: "var(--accent-soft)", borderRadius: "var(--radius-lg)", color: "var(--accent-2)" }}>
+              <h4 style={{ marginBottom: 8 }}>
+                {lang === "en" ? "Message received!" : "消息已收到！"}
+              </h4>
+              <p style={{ margin: 0, fontSize: 14 }}>
+                {lang === "en"
+                  ? "We'll get back to you within a few business days."
+                  : "我们将在数个工作日内回复您。"}
+              </p>
+              <button className="btn btn-ghost btn-sm" style={{ marginTop: 16 }}
+                onClick={() => setSent(false)}>
+                {lang === "en" ? "Send another" : "再次发送"}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label className="label">{lang === "en" ? "Name *" : "姓名 *"}</label>
+                <input className="input" value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder={lang === "en" ? "Your name" : "您的姓名"} />
+              </div>
+              <div>
+                <label className="label">{lang === "en" ? "Email *" : "邮箱 *"}</label>
+                <input className="input" type="email" value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="you@example.com" />
+              </div>
+              <div>
+                <label className="label">{lang === "en" ? "Subject" : "主题"}</label>
+                <input className="input" value={form.subject}
+                  onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+                  placeholder={lang === "en" ? "e.g. PhD application inquiry" : "例如：博士申请咨询"} />
+              </div>
+              <div>
+                <label className="label">{lang === "en" ? "Message *" : "内容 *"}</label>
+                <textarea className="textarea" value={form.body}
+                  onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                  placeholder={lang === "en" ? "Write your message here…" : "请在此输入消息内容…"} />
+              </div>
+              <button className="btn btn-primary" onClick={handleSubmit}
+                disabled={sending || !form.name || !form.email || !form.body}
+                style={{ justifyContent: "center" }}>
+                {sending
+                  ? (lang === "en" ? "Sending…" : "发送中…")
+                  : (lang === "en" ? "Send message" : "发送")}
+                {!sending && <Icon.arrow />}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
