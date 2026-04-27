@@ -61,25 +61,53 @@ function PeoplePage() {
       {/* Members */}
       <section style={{ marginBottom: 80 }}>
         <SectionHeader eyebrow="02" title={t.people.current} action={null} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 1, background: "var(--line)", border: "1px solid var(--line)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 1, background: "var(--line)", border: "1px solid var(--line)" }}>
           {D.members.map(m => (
             <button key={m.id} onClick={() => setSelected(m)} style={{
               background: "var(--bg)", border: "none", textAlign: "left", padding: 20, cursor: "pointer",
-              display: "flex", flexDirection: "column", gap: 12, transition: "background 0.15s",
+              display: "flex", flexDirection: "row", alignItems: "center", gap: 0,
+              transition: "background 0.15s", minHeight: 120,
             }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--bg-2)"}
               onMouseLeave={e => e.currentTarget.style.background = "var(--bg)"}>
-              <div className="placeholder" style={{ width: 64, height: 64, borderRadius: 100, fontSize: 18, fontFamily: "var(--serif)", letterSpacing: 0, color: "var(--ink-3)", padding: 0 }}>
-                {m.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
+
+              {/* Avatar — left ~40% */}
+              <div style={{ flexShrink: 0, width: "40%", display: "flex", justifyContent: "center", alignItems: "center", paddingRight: 16 }}>
+                {m.photo_url ? (
+                  <img src={m.photo_url} alt={m.name}
+                    style={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
+                ) : (
+                  <div style={{
+                    width: 88, height: 88, borderRadius: "50%",
+                    background: "var(--bg-3)", border: "1px solid var(--line-2)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "var(--serif)", fontSize: 26, color: "var(--ink-3)",
+                    letterSpacing: "-0.02em", flexShrink: 0,
+                  }}>
+                    {m.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
+                  </div>
+                )}
               </div>
-              <div>
-                <h4 style={{ fontSize: 15, marginBottom: 2 }}>{lang === "en" ? m.name : m.nameCn}</h4>
-                <p style={{ fontSize: 12, color: "var(--ink-3)", margin: 0, fontFamily: "var(--mono)", letterSpacing: "0.04em" }}>
+
+              {/* Info — right ~60% */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h4 style={{ fontSize: 15, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {lang === "en" ? m.name : m.nameCn}
+                </h4>
+                <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: 0, fontFamily: "var(--mono)", letterSpacing: "0.04em" }}>
                   {lang === "en" ? m.role : m.roleCn}
                 </p>
-                <p style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 8, margin: "8px 0 0" }}>
-                  {lang === "en" ? m.focus : m.focusCn}
-                </p>
+                {(lang === "en" ? m.focus : m.focusCn) && (
+                  <p style={{ fontSize: 12.5, color: "var(--ink-2)", margin: "8px 0 0", lineHeight: 1.45,
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {lang === "en" ? m.focus : m.focusCn}
+                  </p>
+                )}
+                {m.email && (
+                  <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: "6px 0 0", fontFamily: "var(--mono)" }}>
+                    {m.email}
+                  </p>
+                )}
               </div>
             </button>
           ))}
