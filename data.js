@@ -157,12 +157,12 @@ window.LAB_DATA = {
       { en: "Young Investigator Award · Biomolecules", cn: "Biomolecules 杂志青年研究者奖" },
       { en: "Shanghai Overseas High-level Talent", cn: "上海市海外高层次人才" }
     ],
-    email: "fwyuan@shutcm.edu.cn",
+    email: "yuanfuwen@shutcm.edu.cn",
     orcid: "0000-0002-XXXX-XXXX"
   },
 
   members: [
-    { id: "m1", name: "Yuang Wei",     nameCn: "卫宇昂", role: "PhD · 2023 (Joint)",  roleCn: "2023 级博士（联合培养）", year: "2023–", focus: "Adipose tissue senescence and tumor progression", focusCn: "脂肪组织衰老与肿瘤进展", email: "" },
+    { id: "m1", name: "Yuang Wei",     nameCn: "卫宇昂", role: "PhD · 2023 (Joint)",  roleCn: "2023 级博士（联合培养）", year: "2023–", focus: "Adipose tissue senescence and tumor progression", focusCn: "脂肪组织衰老与肿瘤进展", email: "weiyuang0707@163.com" },
     { id: "m2", name: "Siliang Wang",  nameCn: "王思亮", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m3", name: "Yunxiao Qiao",  nameCn: "乔云笑", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m4", name: "Xiaowen Song",  nameCn: "宋晓雯", role: "PhD · 2026",          roleCn: "2026 级博士",            year: "2026–", focus: "", focusCn: "", email: "" },
