@@ -19,6 +19,7 @@ window.SUPABASE = {
         "Content-Type": "application/json"
       }
     });
+    if (!res.ok) return [];
     return res.json();
   },
 
@@ -62,7 +63,60 @@ window.SUPABASE = {
   }
 };
 
-// Yuanlab — seed data. All in-memory; in a real build this comes from your backend.
+// ─── 从数据库加载动态数据，合并到 LAB_DATA ───────────────────────
+// 调用时机：app.jsx 里 App() 组件挂载后调用一次
+// 成功后触发 window.dispatchEvent(new Event("labdata:updated"))
+window.SUPABASE.loadAll = async function () {
+  try {
+    const [members, publications, news, projects] = await Promise.all([
+      window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc", filter: "active=eq.true" }),
+      window.SUPABASE.query("publications", { order: "year.desc" }),
+      window.SUPABASE.query("news", { order: "published_at.desc", limit: 10 }),
+      window.SUPABASE.query("projects", { order: "start_year.desc" }),
+    ]);
+
+    // 只在数据库有内容时覆盖，否则保留 seed 数据
+    if (members && members.length > 0) {
+      window.LAB_DATA.members = members.map(m => ({
+        id: m.id, name: m.name, nameCn: m.name_cn,
+        role: m.role, roleCn: m.role_cn,
+        focus: m.research_interests || "", focusCn: m.research_interests || "",
+        bio: m.bio, bioCn: m.bio_cn,
+        email: m.email || "",
+        year: m.joined_year ? String(m.joined_year) + "–" : "",
+        education: m.education || "",
+        orcid: m.orcid || "",
+        googleScholar: m.google_scholar || "",
+      }));
+    }
+    if (publications && publications.length > 0) {
+      window.LAB_DATA.publications = publications.map(p => ({
+        id: p.id, year: p.year, title: p.title,
+        authors: p.authors, journal: p.journal,
+        volume: "", tag: p.tags ? p.tags[0] : "",
+        featured: p.featured, doi: p.doi,
+      }));
+    }
+    if (news && news.length > 0) {
+      window.LAB_DATA.news = news.map(n => ({
+        date: n.published_at ? n.published_at.slice(0, 10) : "",
+        en: n.content || n.title || "",
+        cn: n.content_cn || n.title_cn || "",
+        pinned: n.pinned,
+        type: n.type,
+      }));
+    }
+    if (projects && projects.length > 0) {
+      window.LAB_DATA.projects = projects;
+    }
+
+    window.dispatchEvent(new Event("labdata:updated"));
+  } catch (e) {
+    console.warn("Supabase load failed, using seed data.", e);
+  }
+};
+
+// ─── Seed 数据（数据库为空时的后备）────────────────────────────────
 
 window.LAB_DATA = {
   lab: {
@@ -112,16 +166,16 @@ window.LAB_DATA = {
     { id: "m2", name: "Siliang Wang",  nameCn: "王思亮", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m3", name: "Yunxiao Qiao",  nameCn: "乔云笑", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m4", name: "Xiaowen Song",  nameCn: "宋晓雯", role: "PhD · 2026",          roleCn: "2026 级博士",            year: "2026–", focus: "", focusCn: "", email: "" },
-    { id: "m5", name: "Chuang Xie",    nameCn: "谢 创",  role: "Master · 2024",        roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "" },
-    { id: "m6", name: "Xinyi Xu",      nameCn: "许心怡", role: "Master · 2024",        roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "" },
-    { id: "m7", name: "Minghuang Xu",  nameCn: "徐明煌", role: "Master · 2025",        roleCn: "2025 级硕士",            year: "2025–", focus: "", focusCn: "", email: "" },
-    { id: "m8", name: "Chunmei Zhou",  nameCn: "周春梅", role: "Master · 2025",        roleCn: "2025 级硕士",            year: "2025–", focus: "", focusCn: "", email: "" }
+    { id: "m5", name: "Chuang Xie",    nameCn: "谢 创",  role: "Master · 2024",       roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "" },
+    { id: "m6", name: "Xinyi Xu",      nameCn: "许心怡", role: "Master · 2024",       roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "" },
+    { id: "m7", name: "Minghuang Xu",  nameCn: "徐明煌", role: "Master · 2025",       roleCn: "2025 级硕士",            year: "2025–", focus: "", focusCn: "", email: "" },
+    { id: "m8", name: "Chunmei Zhou",  nameCn: "周春梅", role: "Master · 2025",       roleCn: "2025 级硕士",            year: "2025–", focus: "", focusCn: "", email: "" }
   ],
 
   alumni: [
-    { name: "Xuehui Li",    nameCn: "李雪惠", role: "Master · 2021 (Joint)", next: "" },
+    { name: "Xuehui Li",     nameCn: "李雪惠",  role: "Master · 2021 (Joint)", next: "" },
     { name: "Qianqian Zhou", nameCn: "周茜茜", role: "Master · 2021",         next: "" },
-    { name: "Fanchen Wu",   nameCn: "吴范晨", role: "Master · 2022",         next: "" }
+    { name: "Fanchen Wu",    nameCn: "吴范晨",  role: "Master · 2022",         next: "" }
   ],
 
   research: [
@@ -163,22 +217,21 @@ window.LAB_DATA = {
     }
   ],
 
-  // 15 selected publications, ranked by: (1) Yuan F as corresponding/last author,
-  // (2) journal impact, (3) recency.
   publications: [
-    { id: "p1", year: 2025, authors: "Zhang Y, Song XW, Zhang N, Li XH, Wu FC, Wei YA, Xu DL, Xu LF, Yuan FW*", title: "Ezetimibe Engineered L14-8 Suppresses Advanced Prostate Cancer by Activating PLK1/TP53-SAT1-Induced Ferroptosis", journal: "Advanced Science", volume: "12(29): e04192", tag: "Corresponding", featured: true, doi: "10.1002/advs.202504192" },
-    { id: "p2", year: 2025, authors: "Li X, Shen Y, Zhang N, Lu D, Ding S, Wu F, Song X, Zhou X, Lin S, Xu H, Wang Z, Yuan F*", title: "Integrative high-throughput studies to develop novel targets and drugs for the treatment of advanced prostate cancer", journal: "Genes & Diseases", volume: "13(2): 101732", tag: "Corresponding", featured: true, doi: "10.1016/j.gendis.2025.101732" },
-    { id: "p3", year: 2025, authors: "Zhang X, Li X, Zhang F, Yang D, Sun Q, Wei Y, Yan R, Xu D, Lin S, Yuan F*, Wang W*", title: "Saikosaponin-D triggers cancer cell death by targeting the PIM1/c-Myc axis to reprogram oncogenic alternative splicing", journal: "Cell Death Discovery", volume: "11(1): 427", tag: "Co-corresponding", featured: true, doi: "10.1038/s41420-025-02729-w" },
-    { id: "p4", year: 2025, authors: "Wei Y, Hankey W, Xu D, Yuan F*", title: "Programmed Cell Death in Cancer", journal: "MedComm (2020)", volume: "6(9): e70357", tag: "Corresponding", featured: true, doi: "10.1002/mco2.70357" },
-    { id: "p6", year: 2024, authors: "Zhou Q, Wu F, Chen Y, Fu J, Zhou L, Xu Y, He F, Gong Z, Yuan F*", title: "Reynoutria multiflora (Thunb.) Moldenke and its ingredient suppress lethal prostate cancer growth by inducing CDC25B-CDK1 mediated cell cycle arrest", journal: "Bioorganic Chemistry", volume: "152: 107731", tag: "Corresponding", featured: true, doi: "10.1016/j.bioorg.2024.107731" },
-    { id: "p7", year: 2023, authors: "Chen Y, Zhou Q, Zhang H, Xu L, Lu L, Shu B, Zhou L, Yuan F*", title: "Qingdai Decoction suppresses prostate cancer growth in lethal-stage prostate cancer models", journal: "Journal of Ethnopharmacology", volume: "308: 116333", tag: "Corresponding", featured: true, doi: "10.1016/j.jep.2023.116333" },
-    { id: "p8", year: 2022, authors: "Chen Y, Zhou Q, Hankey W, Fang X, Yuan F*", title: "Second generation androgen receptor antagonists and challenges in prostate cancer treatment", journal: "Cell Death & Disease", volume: "13(7): 632", tag: "Corresponding", featured: true, doi: "10.1038/s41419-022-05084-1" },
-    { id: "p9", year: 2022, authors: "Zhou Q, Chen Y, Wang R, Jia F, He F, Yuan F*", title: "Advances of CRISPR-Cas13 system in COVID-19 diagnosis and treatment", journal: "Genes & Diseases", volume: "10(6): 2414–2424", tag: "Corresponding", featured: true, doi: "10.1016/j.gendis.2022.11.016" },
+    { id: "p1",  year: 2025, authors: "Zhang Y, Song XW, Zhang N, Li XH, Wu FC, Wei YA, Xu DL, Xu LF, Yuan FW*", title: "Ezetimibe Engineered L14-8 Suppresses Advanced Prostate Cancer by Activating PLK1/TP53-SAT1-Induced Ferroptosis", journal: "Advanced Science", volume: "12(29): e04192", tag: "Corresponding", featured: true, doi: "10.1002/advs.202504192" },
+    { id: "p2",  year: 2025, authors: "Li X, Shen Y, Zhang N, Lu D, Ding S, Wu F, Song X, Zhou X, Lin S, Xu H, Wang Z, Yuan F*", title: "Integrative high-throughput studies to develop novel targets and drugs for the treatment of advanced prostate cancer", journal: "Genes & Diseases", volume: "13(2): 101732", tag: "Corresponding", featured: true, doi: "10.1016/j.gendis.2025.101732" },
+    { id: "p3",  year: 2025, authors: "Zhang X, Li X, Zhang F, Yang D, Sun Q, Wei Y, Yan R, Xu D, Lin S, Yuan F*, Wang W*", title: "Saikosaponin-D triggers cancer cell death by targeting the PIM1/c-Myc axis to reprogram oncogenic alternative splicing", journal: "Cell Death Discovery", volume: "11(1): 427", tag: "Co-corresponding", featured: true, doi: "10.1038/s41420-025-02729-w" },
+    { id: "p4",  year: 2025, authors: "Wei Y, Hankey W, Xu D, Yuan F*", title: "Programmed Cell Death in Cancer", journal: "MedComm (2020)", volume: "6(9): e70357", tag: "Corresponding", featured: true, doi: "10.1002/mco2.70357" },
+    { id: "p5",  year: 2025, authors: "Wei Y, Yuan F*", title: "Periprostatic adipose tissue in prostate cancer development and progression", journal: "Frontiers in Oncology", volume: "15: 1543479", tag: "Corresponding", featured: false, doi: "10.3389/fonc.2025.1543479" },
+    { id: "p6",  year: 2024, authors: "Zhou Q, Wu F, Chen Y, Fu J, Zhou L, Xu Y, He F, Gong Z, Yuan F*", title: "Reynoutria multiflora (Thunb.) Moldenke and its ingredient suppress lethal prostate cancer growth by inducing CDC25B-CDK1 mediated cell cycle arrest", journal: "Bioorganic Chemistry", volume: "152: 107731", tag: "Corresponding", featured: true, doi: "10.1016/j.bioorg.2024.107731" },
+    { id: "p7",  year: 2023, authors: "Chen Y, Zhou Q, Zhang H, Xu L, Lu L, Shu B, Zhou L, Yuan F*", title: "Qingdai Decoction suppresses prostate cancer growth in lethal-stage prostate cancer models", journal: "Journal of Ethnopharmacology", volume: "308: 116333", tag: "Corresponding", featured: true, doi: "10.1016/j.jep.2023.116333" },
+    { id: "p8",  year: 2022, authors: "Chen Y, Zhou Q, Hankey W, Fang X, Yuan F*", title: "Second generation androgen receptor antagonists and challenges in prostate cancer treatment", journal: "Cell Death & Disease", volume: "13(7): 632", tag: "Corresponding", featured: true, doi: "10.1038/s41419-022-05084-1" },
+    { id: "p9",  year: 2022, authors: "Zhou Q, Chen Y, Wang R, Jia F, He F, Yuan F*", title: "Advances of CRISPR-Cas13 system in COVID-19 diagnosis and treatment", journal: "Genes & Diseases", volume: "10(6): 2414–2424", tag: "Corresponding", featured: true, doi: "10.1016/j.gendis.2022.11.016" },
     { id: "p10", year: 2022, authors: "Cui Z, Zeng C, Huang F, Yuan F, Yan J, Zhao Y, Zhou Y, Hankey W, Jin VX, Huang J, Staats HF, Everitt JI, Sempowski GD, Wang H, Dong Y, Liu SL, Wang Q", title: "Cas13d knockdown of lung protease Ctsl prevents and treats SARS-CoV-2 infection", journal: "Nature Chemical Biology", volume: "18(10): 1056–1064", tag: "Co-author", featured: true, doi: "10.1038/s41589-022-01094-4" },
-    { id: "p11", year: 2022, authors: "Chen Z, Ye Z, Soccio RE, Nakadai T, Hankey W, Zhao Y, Huang F, Yuan F, Wang H, et al.", title: "Phosphorylated MED1 links transcription recycling and cancer growth", journal: "Nucleic Acids Research", volume: "50(8): 4450–4463", tag: "Co-author", doi: "10.1093/nar/gkac246" },
+    { id: "p11", year: 2022, authors: "Chen Z, Ye Z, Soccio RE, Nakadai T, Hankey W, Zhao Y, Huang F, Yuan F, Wang H, et al.", title: "Phosphorylated MED1 links transcription recycling and cancer growth", journal: "Nucleic Acids Research", volume: "50(8): 4450–4463", tag: "Co-author", featured: false, doi: "10.1093/nar/gkac246" },
     { id: "p12", year: 2019, authors: "Yuan F, Hankey W, Wu D, Wang H, Somarelli J, Armstrong AJ, Huang J, Chen Z, Wang Q", title: "Molecular determinants for enzalutamide-induced transcription in prostate cancer", journal: "Nucleic Acids Research", volume: "47(19): 10104–10114", tag: "First", featured: true, doi: "10.1093/nar/gkz790" },
-    { id: "p13", year: 2019, authors: "Yuan F, Hankey W, Wagner EJ, Li W, Wang Q", title: "Alternative polyadenylation of mRNA and its role in cancer", journal: "Genes & Diseases", volume: "8(1): 61–72", tag: "First", doi: "10.1016/j.gendis.2019.10.011" },
-    { id: "p14", year: 2018, authors: "Yuan F, Xu C, Li G, Tong T", title: "Nucleolar TRF2 attenuated nucleolus stress-induced HCC cell-cycle arrest by altering rRNA synthesis", journal: "Cell Death & Disease", volume: "9(5): 518", tag: "First", doi: "10.1038/s41419-018-0572-3" },
+    { id: "p13", year: 2019, authors: "Yuan F, Hankey W, Wagner EJ, Li W, Wang Q", title: "Alternative polyadenylation of mRNA and its role in cancer", journal: "Genes & Diseases", volume: "8(1): 61–72", tag: "First", featured: false, doi: "10.1016/j.gendis.2019.10.011" },
+    { id: "p14", year: 2018, authors: "Yuan F, Xu C, Li G, Tong T", title: "Nucleolar TRF2 attenuated nucleolus stress-induced HCC cell-cycle arrest by altering rRNA synthesis", journal: "Cell Death & Disease", volume: "9(5): 518", tag: "First", featured: false, doi: "10.1038/s41419-018-0572-3" },
     { id: "p15", year: 2017, authors: "Yuan F, Zhang Y, Ma L, Cheng Q, Li G, Tong T", title: "Enhanced NOLC1 promotes cell senescence and represses hepatocellular carcinoma cell proliferation by disturbing the organization of nucleolus", journal: "Aging Cell", volume: "16(4): 726–737", tag: "First", featured: true, doi: "10.1111/acel.12602" }
   ],
 
@@ -187,26 +240,27 @@ window.LAB_DATA = {
     { date: "2025-11-20", en: "We are recruiting 2026 PhD students — see Join Us.", cn: "课题组 2026 级博士招生进行中，详见 Join Us。" }
   ],
 
+  projects: [],
+
   resources: [
-    { id: "f1", category: "Protocols", name: "RNA-seq library prep · Yuanlab v3.2", type: "PDF", size: "1.4 MB", uploaded: "2026-04-10", uploader: "Yuang Wei", downloads: 23 },
-    { id: "f2", category: "Protocols", name: "CRISPR-Cas13d guide design SOP", type: "DOCX", size: "320 KB", uploaded: "2026-03-21", uploader: "Siliang Wang", downloads: 41 },
-    { id: "f3", category: "Protocols", name: "Mouse xenograft — castration model", type: "PDF", size: "880 KB", uploaded: "2026-02-08", uploader: "Yunxiao Qiao", downloads: 17 },
-    { id: "f4", category: "Protocols", name: "ChIP-seq for AR · cross-linking optimized", type: "PDF", size: "1.1 MB", uploaded: "2026-01-15", uploader: "Chuang Xie", downloads: 28 },
-    { id: "f5", category: "Literature PPT", name: "Adv Sci 2025 — L14-8 ferroptosis in CRPC", type: "PPTX", size: "12 MB", uploaded: "2026-04-22", uploader: "Xinyi Xu", downloads: 9 },
-    { id: "f6", category: "Literature PPT", name: "Cell Death Discov 2025 — Saikosaponin-D / PIM1 / splicing", type: "PPTX", size: "18 MB", uploaded: "2026-04-15", uploader: "Minghuang Xu", downloads: 12 },
-    { id: "f7", category: "Literature PPT", name: "Nat Chem Biol 2022 — Cas13d Ctsl SARS-CoV-2", type: "PPTX", size: "9.4 MB", uploaded: "2026-03-08", uploader: "Chunmei Zhou", downloads: 18 },
-    { id: "f8", category: "Duty Roster", name: "Lab duty roster · 2026 Q2", type: "XLSX", size: "48 KB", uploaded: "2026-03-30", uploader: "Lab Manager", downloads: 31 },
-    { id: "f9", category: "Lab Meeting", name: "Group meeting schedule · 2026 Spring", type: "XLSX", size: "32 KB", uploaded: "2026-02-25", uploader: "Lab Manager", downloads: 47 },
-    { id: "f10", category: "Reagent Inventory", name: "Antibody inventory · master sheet", type: "XLSX", size: "210 KB", uploaded: "2026-04-18", uploader: "Lab Manager", downloads: 22 },
-    { id: "f11", category: "Reagent Inventory", name: "Plasmid bank · CRISPR vectors", type: "XLSX", size: "96 KB", uploaded: "2026-04-02", uploader: "Siliang Wang", downloads: 15 },
-    { id: "f12", category: "Reading Group", name: "Reading list · April 2026", type: "PDF", size: "180 KB", uploaded: "2026-04-01", uploader: "Fuwen Yuan", downloads: 19 }
+    { id: "f1",  category: "Protocols",         name: "RNA-seq library prep · Yuanlab v3.2",              type: "PDF",  size: "1.4 MB",  uploaded: "2026-04-10", uploader: "Yuang Wei",     downloads: 23 },
+    { id: "f2",  category: "Protocols",         name: "CRISPR-Cas13d guide design SOP",                   type: "DOCX", size: "320 KB",  uploaded: "2026-03-21", uploader: "Siliang Wang", downloads: 41 },
+    { id: "f3",  category: "Protocols",         name: "Mouse xenograft — castration model",               type: "PDF",  size: "880 KB",  uploaded: "2026-02-08", uploader: "Yunxiao Qiao", downloads: 17 },
+    { id: "f4",  category: "Protocols",         name: "ChIP-seq for AR · cross-linking optimized",        type: "PDF",  size: "1.1 MB",  uploaded: "2026-01-15", uploader: "Chuang Xie",  downloads: 28 },
+    { id: "f5",  category: "Literature PPT",    name: "Adv Sci 2025 — L14-8 ferroptosis in CRPC",         type: "PPTX", size: "12 MB",   uploaded: "2026-04-22", uploader: "Xinyi Xu",     downloads: 9  },
+    { id: "f6",  category: "Literature PPT",    name: "Cell Death Discov 2025 — Saikosaponin-D / PIM1",   type: "PPTX", size: "18 MB",   uploaded: "2026-04-15", uploader: "Minghuang Xu", downloads: 12 },
+    { id: "f7",  category: "Literature PPT",    name: "Nat Chem Biol 2022 — Cas13d Ctsl SARS-CoV-2",      type: "PPTX", size: "9.4 MB",  uploaded: "2026-03-08", uploader: "Chunmei Zhou", downloads: 18 },
+    { id: "f8",  category: "Duty Roster",       name: "Lab duty roster · 2026 Q2",                        type: "XLSX", size: "48 KB",   uploaded: "2026-03-30", uploader: "Lab Manager",  downloads: 31 },
+    { id: "f9",  category: "Lab Meeting",       name: "Group meeting schedule · 2026 Spring",             type: "XLSX", size: "32 KB",   uploaded: "2026-02-25", uploader: "Lab Manager",  downloads: 47 },
+    { id: "f10", category: "Reagent Inventory", name: "Antibody inventory · master sheet",                type: "XLSX", size: "210 KB",  uploaded: "2026-04-18", uploader: "Lab Manager",  downloads: 22 },
+    { id: "f11", category: "Reagent Inventory", name: "Plasmid bank · CRISPR vectors",                    type: "XLSX", size: "96 KB",   uploaded: "2026-04-02", uploader: "Siliang Wang", downloads: 15 },
+    { id: "f12", category: "Reading Group",     name: "Reading list · April 2026",                        type: "PDF",  size: "180 KB",  uploaded: "2026-04-01", uploader: "Fuwen Yuan",   downloads: 19 }
   ],
 
-  // Demo accounts. In production, do this server-side.
   accounts: [
-    { username: "admin",   password: "admin",   role: "admin",   name: "Fuwen Yuan",   nameCn: "袁富文" },
-    { username: "weiyuang",  password: "weiyuangat123",  role: "member",  name: "Yuang Wei",    nameCn: "卫宇昂" },
-    { username: "guest",   password: "",        role: "guest",   name: "Visitor",      nameCn: "访客" }
+    { username: "admin",    password: "admin",          role: "admin",  name: "Fuwen Yuan", nameCn: "袁富文" },
+    { username: "weiyuang", password: "weiyuangat123",  role: "member", name: "Yuang Wei",  nameCn: "卫宇昂" },
+    { username: "guest",    password: "",               role: "guest",  name: "Visitor",    nameCn: "访客" }
   ],
 
   joinUs: {
@@ -244,12 +298,7 @@ window.LAB_I18N = {
     resources: {
       gateTitle: "Resources are members-only",
       gateBody: "Sign in with your lab account to access protocols, literature presentations, duty rosters, and shared files. Visitors only see public categories.",
-      categories: "Categories",
-      uploaded: "Uploaded",
-      uploader: "By",
-      downloads: "Downloads",
-      download: "Download",
-      preview: "Preview"
+      categories: "Categories", uploaded: "Uploaded", uploader: "By", downloads: "Downloads", download: "Download", preview: "Preview"
     },
     auth: { username: "Username", password: "Password", signinTitle: "Sign in to Yuan Lab", signinHint: "Demo accounts: admin / admin · member / member", continueGuest: "Continue as visitor" },
     common: { close: "Close", save: "Save", cancel: "Cancel", delete: "Delete", edit: "Edit", add: "Add", upload: "Upload", confirm: "Confirm", search: "Search" }
@@ -270,13 +319,8 @@ window.LAB_I18N = {
     pubs: { all: "全部", featured: "精选", searchPlaceholder: "搜索标题、作者、期刊…" },
     resources: {
       gateTitle: "共享资源仅对组内成员开放",
-      gateBody: "请使用课题组账号登录后访问 实验方法、文献汇报、值日表 等共享文件。访客仅可见部分公开分类。",
-      categories: "分类",
-      uploaded: "上传时间",
-      uploader: "上传者",
-      downloads: "下载次数",
-      download: "下载",
-      preview: "预览"
+      gateBody: "请使用课题组账号登录后访问实验方法、文献汇报、值日表等共享文件。",
+      categories: "分类", uploaded: "上传时间", uploader: "上传者", downloads: "下载次数", download: "下载", preview: "预览"
     },
     auth: { username: "账号", password: "密码", signinTitle: "登录 Yuan Lab", signinHint: "演示账号：admin / admin · member / member", continueGuest: "以访客身份浏览" },
     common: { close: "关闭", save: "保存", cancel: "取消", delete: "删除", edit: "编辑", add: "添加", upload: "上传", confirm: "确认", search: "搜索" }
