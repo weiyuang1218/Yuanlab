@@ -7,8 +7,9 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [dbReady, setDbReady] = useState(false); // tracks whether Supabase data has loaded
 
-  // Persist some state for refresh-friendliness
+  // Persist state for refresh-friendliness
   useEffect(() => {
     const saved = localStorage.getItem("yuanlab.state");
     if (saved) {
@@ -21,15 +22,25 @@ function App() {
       } catch (e) {}
     }
   }, []);
+
   useEffect(() => {
     localStorage.setItem("yuanlab.state", JSON.stringify({ route, lang, user, adminOpen }));
   }, [route, lang, user, adminOpen]);
+
+  // Load live data from Supabase on mount
+  useEffect(() => {
+    window.SUPABASE.loadAll();
+    function onUpdate() { setDbReady(r => !r); } // toggle to force re-render
+    window.addEventListener("labdata:updated", onUpdate);
+    return () => window.removeEventListener("labdata:updated", onUpdate);
+  }, []);
 
   function setRoute(r) {
     setRouteRaw(r);
     setAdminOpen(false);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
+
   function signIn(username, password) {
     const a = window.LAB_DATA.accounts.find(x => x.username === username && x.password === password);
     if (!a) return false;
@@ -37,11 +48,13 @@ function App() {
     addToast((lang === "en" ? "Signed in as " : "已登录 · ") + a.name);
     return true;
   }
+
   function signOut() {
     setUser({ role: "guest", name: "Visitor" });
     setAdminOpen(false);
     addToast(lang === "en" ? "Signed out" : "已退出");
   }
+
   function addToast(text) {
     const id = Math.random().toString(36).slice(2);
     setToasts(prev => [...prev, { id, text }]);
@@ -54,7 +67,7 @@ function App() {
     route, setRoute, lang, setLang, user, signIn, signOut,
     showLogin, openLogin: () => setShowLogin(true), closeLogin: () => setShowLogin(false),
     adminOpen, openAdmin: () => setAdminOpen(true), closeAdmin: () => setAdminOpen(false),
-    toasts, addToast, t,
+    toasts, addToast, t, dbReady,
   };
 
   return (
@@ -64,13 +77,13 @@ function App() {
         <main>
           {adminOpen ? <AdminPage /> : (
             <>
-              {route === "home" && <HomePage />}
-              {route === "people" && <PeoplePage />}
-              {route === "research" && <ResearchPage />}
+              {route === "home"         && <HomePage />}
+              {route === "people"       && <PeoplePage />}
+              {route === "research"     && <ResearchPage />}
               {route === "publications" && <PublicationsPage />}
-              {route === "resources" && <ResourcesPage />}
-              {route === "join" && <JoinPage />}
-              {route === "contact" && <ContactPage />}
+              {route === "resources"    && <ResourcesPage />}
+              {route === "join"         && <JoinPage />}
+              {route === "contact"      && <ContactPage />}
             </>
           )}
         </main>
