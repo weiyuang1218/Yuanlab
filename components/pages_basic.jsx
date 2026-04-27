@@ -16,7 +16,7 @@ function HomePage() {
           </div>
           <h1 style={{ maxWidth: "20ch", marginBottom: 32 }}>
             {lang === "en" ? (
-              <>Where traditional medicine, <em style={{ fontStyle: "italic", color: "var(--accent)" }}> meets </em> molecular oncology.</>
+              <>Where traditional medicine <em style={{ fontStyle: "italic", color: "var(--accent)" }}> meets </em> molecular oncology.</>
             ) : (
               <>激素依赖肿瘤、<em style={{ fontStyle: "italic", color: "var(--accent)" }}>衰老调控</em> 与靶向干预的分子图谱。</>
             )}
