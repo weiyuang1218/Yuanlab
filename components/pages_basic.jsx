@@ -18,7 +18,7 @@ function HomePage() {
             {lang === "en" ? (
               <>Where traditional medicine <em style={{ fontStyle: "italic", color: "var(--accent)" }}> meets </em> molecular oncology.</>
             ) : (
-              <>激素依赖肿瘤、<em style={{ fontStyle: "italic", color: "var(--accent)" }}>衰老调控</em> 与靶向干预的分子图谱。</>
+              <>传统中医药、<em style={{ fontStyle: "italic", color: "var(--accent)" }}>遇见</em> 现代分子肿瘤学。</>
             )}
           </h1>
           <p className="lead" style={{ maxWidth: "65ch", marginBottom: 40 }}>
