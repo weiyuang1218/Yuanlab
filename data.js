@@ -59,11 +59,7 @@ window.SUPABASE = {
         "Authorization": `Bearer ${SUPABASE_KEY}`
       }
     });
-    if (!res.ok) {
-      const msg = await res.text().catch(() => "Unknown error");
-      throw new Error(msg);
-    }
-    return true;
+    return res.ok;
   },
 
   async uploadFile(bucket, path, file) {
@@ -77,10 +73,7 @@ window.SUPABASE = {
       },
       body: file,
     });
-    if (!res.ok) {
-      const msg = await res.text().catch(() => "Upload failed");
-      throw new Error(msg);
-    }
+    if (!res.ok) throw new Error("Upload failed: " + res.status);
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
 };
@@ -90,28 +83,44 @@ window.SUPABASE = {
 // 成功后触发 window.dispatchEvent(new Event("labdata:updated"))
 window.SUPABASE.loadAll = async function () {
   try {
-    const [members, publications, news, projects, resources] = await Promise.all([
-      window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc", filter: "active=eq.true" }),
+    const [allMembers, publications, news, projects, resources] = await Promise.all([
+      window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc" }), // load ALL members
       window.SUPABASE.query("publications", { order: "year.desc" }),
       window.SUPABASE.query("news", { order: "published_at.desc", limit: 10 }),
       window.SUPABASE.query("projects", { order: "start_year.desc" }),
-      window.SUPABASE.query("resources", { order: "uploaded_at.desc" }),
+      window.SUPABASE.query("resources", { order: "created_at.desc" }),
     ]);
 
-    // 只在数据库有内容时覆盖，否则保留 seed 数据
-    if (members && members.length > 0) {
-      window.LAB_DATA.members = members.map(m => ({
+    function mapMember(m) {
+      return {
         id: m.id, name: m.name, nameCn: m.name_cn,
         role: m.role, roleCn: m.role_cn,
         focus: m.research_interests || "", focusCn: m.research_interests || "",
-        bio: m.bio, bioCn: m.bio_cn,
+        bio: m.bio || "", bioCn: m.bio_cn || "",
         email: m.email || "",
         year: m.joined_year ? String(m.joined_year) + "–" : "",
+        active: m.active !== false, // default true if null
         education: m.education || "",
         orcid: m.orcid || "",
         googleScholar: m.google_scholar || "",
-      }));
+        photo_url: m.photo_url || "",
+      };
     }
+
+    if (allMembers && allMembers.length > 0) {
+      const mapped = allMembers.map(mapMember);
+      // active members go to LAB_DATA.members
+      window.LAB_DATA.members = mapped.filter(m => m.active !== false);
+      // inactive members replace LAB_DATA.alumni
+      const dbAlumni = mapped.filter(m => m.active === false);
+      if (dbAlumni.length > 0) {
+        window.LAB_DATA.alumni = dbAlumni.map(m => ({
+          id: m.id, name: m.name, nameCn: m.nameCn,
+          role: m.role, next: m.next || "", active: false,
+        }));
+      }
+    }
+
     if (publications && publications.length > 0) {
       window.LAB_DATA.publications = publications.map(p => ({
         id: p.id, year: p.year, title: p.title,
@@ -120,9 +129,24 @@ window.SUPABASE.loadAll = async function () {
         featured: p.featured, doi: p.doi,
       }));
     }
+
+    // Resources — map DB field names (title, file_url, file_type) to frontend names
+    if (resources && resources.length > 0) {
+      window.LAB_DATA.resources = resources.map(r => ({
+        id: r.id,
+        name: r.title || r.name || "",
+        category: r.category || "",
+        type: r.file_type || r.type || "",
+        size: r.size || "",
+        url: r.file_url || r.url || "",
+        uploader: r.uploader || "",
+        downloads: r.downloads || 0,
+        uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : (r.created_at ? r.created_at.slice(0, 10) : ""),
+      }));
+    }
+
     if (news && news.length > 0) {
       window.LAB_DATA.news = news.map(n => ({
-        id: n.id,
         date: n.published_at ? n.published_at.slice(0, 10) : "",
         en: n.content || n.title || "",
         cn: n.content_cn || n.title_cn || "",
@@ -132,19 +156,6 @@ window.SUPABASE.loadAll = async function () {
     }
     if (projects && projects.length > 0) {
       window.LAB_DATA.projects = projects;
-    }
-    if (resources && resources.length > 0) {
-      window.LAB_DATA.resources = resources.map(r => ({
-        id: r.id,
-        name: r.name,
-        category: r.category || "",
-        type: r.type || "",
-        size: r.size || "",
-        url: r.url || "",
-        uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : "",
-        uploader: r.uploader || "",
-        downloads: r.downloads || 0,
-      }));
     }
 
     window.dispatchEvent(new Event("labdata:updated"));
@@ -194,12 +205,12 @@ window.LAB_DATA = {
       { en: "Young Investigator Award · Biomolecules", cn: "Biomolecules 杂志青年研究者奖" },
       { en: "Shanghai Overseas High-level Talent", cn: "上海市海外高层次人才" }
     ],
-    email: "yuanfuwen@shutcm.edu.cn",
+    email: "fwyuan@shutcm.edu.cn",
     orcid: "0000-0002-XXXX-XXXX"
   },
 
   members: [
-    { id: "m1", name: "Yuang Wei",     nameCn: "卫宇昂", role: "PhD · 2023 (Joint)",  roleCn: "2023 级博士（联合培养）", year: "2023–", focus: "Adipose tissue senescence and tumor progression", focusCn: "脂肪组织衰老与肿瘤进展", email: "weiyuang0707@163.com" },
+    { id: "m1", name: "Yuang Wei",     nameCn: "卫宇昂", role: "PhD · 2023 (Joint)",  roleCn: "2023 级博士（联合培养）", year: "2023–", focus: "Adipose tissue senescence and tumor progression", focusCn: "脂肪组织衰老与肿瘤进展", email: "" },
     { id: "m2", name: "Siliang Wang",  nameCn: "王思亮", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m3", name: "Yunxiao Qiao",  nameCn: "乔云笑", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m4", name: "Xiaowen Song",  nameCn: "宋晓雯", role: "PhD · 2026",          roleCn: "2026 级博士",            year: "2026–", focus: "", focusCn: "", email: "" },
