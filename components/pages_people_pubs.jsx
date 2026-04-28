@@ -5,6 +5,16 @@ function PeoplePage() {
   const D = window.LAB_DATA;
   const [selected, setSelected] = useState(null);
 
+  // Split by active field (DB-driven) — fall back to D.alumni for seed data
+  const currentMembers = D.members.filter(m => m.active !== false);
+  const dbAlumni = D.members.filter(m => m.active === false);
+  const seedAlumni = D.alumni || [];
+  // Merge: db alumni + seed alumni (avoid duplicates by name)
+  const allAlumni = [
+    ...dbAlumni.map(m => ({ name: m.name, nameCn: m.nameCn, role: m.role, next: m.next || "" })),
+    ...seedAlumni.filter(a => !dbAlumni.find(m => m.name === a.name)),
+  ];
+
   return (
     <div className="page-fade container" style={{ padding: "64px 32px 0" }}>
       <div className="eyebrow" style={{ marginBottom: 16 }}>People · 成员</div>
@@ -62,7 +72,7 @@ function PeoplePage() {
       <section style={{ marginBottom: 80 }}>
         <SectionHeader eyebrow="02" title={t.people.current} action={null} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 1, background: "var(--line)", border: "1px solid var(--line)" }}>
-          {D.members.map(m => (
+          {currentMembers.map(m => (
             <button key={m.id} onClick={() => setSelected(m)} style={{
               background: "var(--bg)", border: "none", textAlign: "left", padding: 20, cursor: "pointer",
               display: "flex", flexDirection: "row", alignItems: "center", gap: 0,
@@ -70,7 +80,6 @@ function PeoplePage() {
             }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--bg-2)"}
               onMouseLeave={e => e.currentTarget.style.background = "var(--bg)"}>
-
               {/* Avatar — left ~40% */}
               <div style={{ flexShrink: 0, width: "40%", display: "flex", justifyContent: "center", alignItems: "center", paddingRight: 16 }}>
                 {m.photo_url ? (
@@ -88,7 +97,6 @@ function PeoplePage() {
                   </div>
                 )}
               </div>
-
               {/* Info — right ~60% */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h4 style={{ fontSize: 15, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -103,11 +111,6 @@ function PeoplePage() {
                     {lang === "en" ? m.focus : m.focusCn}
                   </p>
                 )}
-                {m.email && (
-                  <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: "6px 0 0", fontFamily: "var(--mono)" }}>
-                    {m.email}
-                  </p>
-                )}
               </div>
             </button>
           ))}
@@ -118,7 +121,7 @@ function PeoplePage() {
       <section>
         <SectionHeader eyebrow="03" title={t.people.alumni} action={null} />
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {D.alumni.map((a, i) => (
+          {allAlumni.map((a, i) => (
             <div key={i} style={{ padding: "16px 0", borderBottom: "1px solid var(--line)", display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 24, fontSize: 14 }}>
               <span style={{ fontWeight: 500 }}>{lang === "en" ? a.name : a.nameCn}</span>
               <span style={{ color: "var(--ink-3)", fontFamily: "var(--mono)", fontSize: 12 }}>{a.role}</span>
@@ -200,8 +203,8 @@ function PublicationsPage() {
       <h1 style={{ marginBottom: 24 }}>{lang === "en" ? "Selected work, in print." : "代表性论文。"}</h1>
       <p className="lead" style={{ marginBottom: 56 }}>
         {lang === "en"
-          ? "Peer-reviewed papers, books, and patents from 2021 onward. * indicates corresponding author."
-          : "2021 年至今发表的代表性论文、专著与专利。* 表示通讯作者。"}
+          ? "Peer-reviewed papers, books, and patents. * indicates corresponding author."
+          : "已发表的代表性论文、专著与专利。* 表示通讯作者。"}
       </p>
 
       {/* Filter bar */}
