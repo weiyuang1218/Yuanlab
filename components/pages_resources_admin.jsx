@@ -1197,6 +1197,7 @@ function UploadModal({ onClose, onUpload, defaultCat }) {
                 <option>Lab Meeting</option>
                 <option>Reagent Inventory</option>
                 <option>Reading Group</option>
+                <option>Databases and Datasets</option>
               </select>
             </div>
             <div>
