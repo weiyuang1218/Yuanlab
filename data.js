@@ -307,6 +307,7 @@ window.LAB_DATA = {
   accounts: [
     { username: "admin",    password: "admin",          role: "admin",  name: "Fuwen Yuan", nameCn: "袁富文" },
     { username: "weiyuang", password: "weiyuangat123",  role: "member", name: "Yuang Wei",  nameCn: "卫宇昂" },
+    { username: "xiechuang", password: "xiechuang",  role: "member", name: "Chuang Xie",  nameCn: "谢创" },
     { username: "guest",    password: "",               role: "guest",  name: "Visitor",    nameCn: "访客" }
   ],
 
