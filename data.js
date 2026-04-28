@@ -142,7 +142,13 @@ window.SUPABASE.loadAll = async function () {
         uploader: r.uploader || "",
         downloads: r.downloads || 0,
         uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : (r.created_at ? r.created_at.slice(0, 10) : ""),
+        // Literature PPT extra fields
+        presenter: r.presenter || "",
+        paperTitle: r.paper_title || "",
+        researchField: r.research_field || "",
+        presentationDate: r.presentation_date || "",
       }));
+
     }
 
     if (news && news.length > 0) {
@@ -270,6 +276,7 @@ window.LAB_DATA = {
     { id: "p2",  year: 2025, authors: "Li X, Shen Y, Zhang N, Lu D, Ding S, Wu F, Song X, Zhou X, Lin S, Xu H, Wang Z, Yuan F*", title: "Integrative high-throughput studies to develop novel targets and drugs for the treatment of advanced prostate cancer", journal: "Genes & Diseases", volume: "13(2): 101732", tag: "Corresponding", featured: true, doi: "10.1016/j.gendis.2025.101732" },
     { id: "p3",  year: 2025, authors: "Zhang X, Li X, Zhang F, Yang D, Sun Q, Wei Y, Yan R, Xu D, Lin S, Yuan F*, Wang W*", title: "Saikosaponin-D triggers cancer cell death by targeting the PIM1/c-Myc axis to reprogram oncogenic alternative splicing", journal: "Cell Death Discovery", volume: "11(1): 427", tag: "Co-corresponding", featured: true, doi: "10.1038/s41420-025-02729-w" },
     { id: "p4",  year: 2025, authors: "Wei Y, Hankey W, Xu D, Yuan F*", title: "Programmed Cell Death in Cancer", journal: "MedComm (2020)", volume: "6(9): e70357", tag: "Corresponding", featured: true, doi: "10.1002/mco2.70357" },
+    { id: "p5",  year: 2025, authors: "Wei Y, Yuan F*", title: "Periprostatic adipose tissue in prostate cancer development and progression", journal: "Frontiers in Oncology", volume: "15: 1543479", tag: "Corresponding", featured: false, doi: "10.3389/fonc.2025.1543479" },
     { id: "p6",  year: 2024, authors: "Zhou Q, Wu F, Chen Y, Fu J, Zhou L, Xu Y, He F, Gong Z, Yuan F*", title: "Reynoutria multiflora (Thunb.) Moldenke and its ingredient suppress lethal prostate cancer growth by inducing CDC25B-CDK1 mediated cell cycle arrest", journal: "Bioorganic Chemistry", volume: "152: 107731", tag: "Corresponding", featured: true, doi: "10.1016/j.bioorg.2024.107731" },
     { id: "p7",  year: 2023, authors: "Chen Y, Zhou Q, Zhang H, Xu L, Lu L, Shu B, Zhou L, Yuan F*", title: "Qingdai Decoction suppresses prostate cancer growth in lethal-stage prostate cancer models", journal: "Journal of Ethnopharmacology", volume: "308: 116333", tag: "Corresponding", featured: true, doi: "10.1016/j.jep.2023.116333" },
     { id: "p8",  year: 2022, authors: "Chen Y, Zhou Q, Hankey W, Fang X, Yuan F*", title: "Second generation androgen receptor antagonists and challenges in prostate cancer treatment", journal: "Cell Death & Disease", volume: "13(7): 632", tag: "Corresponding", featured: true, doi: "10.1038/s41419-022-05084-1" },
@@ -307,7 +314,6 @@ window.LAB_DATA = {
   accounts: [
     { username: "admin",    password: "admin",          role: "admin",  name: "Fuwen Yuan", nameCn: "袁富文" },
     { username: "weiyuang", password: "weiyuangat123",  role: "member", name: "Yuang Wei",  nameCn: "卫宇昂" },
-    { username: "xiechuang", password: "xiechuang",  role: "member", name: "Chuang Xie",  nameCn: "谢创" },
     { username: "guest",    password: "",               role: "guest",  name: "Visitor",    nameCn: "访客" }
   ],
 
