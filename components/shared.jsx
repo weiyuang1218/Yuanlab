@@ -193,11 +193,6 @@ function LoginModal() {
     if (!ok) setErr(lang === "en" ? "Invalid credentials." : "账号或密码错误。");
     else closeLogin();
   }
-  function quick(role) {
-    const a = window.LAB_DATA.accounts.find(x => x.role === role);
-    setU(a.username); setP(a.password);
-    setTimeout(() => { signIn(a.username, a.password); closeLogin(); }, 80);
-  }
   return (
     <div className="modal-backdrop" onClick={closeLogin}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
@@ -215,15 +210,10 @@ function LoginModal() {
           <label className="label">{t.auth.password}</label>
           <input className="input" type="password" value={p} onChange={(e) => setP(e.target.value)} placeholder="•••••" />
           {err && <div style={{ marginTop: 12, padding: "8px 12px", background: "oklch(0.95 0.04 25)", color: "var(--danger)", fontSize: 13, borderRadius: 4 }}>{err}</div>}
-          <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ marginTop: 18 }}>
             <button className="btn btn-primary" type="submit" style={{ justifyContent: "center", width: "100%" }}>
               {t.actions.signin} <Icon.arrow />
             </button>
-            <div style={{ fontSize: 12, color: "var(--ink-3)", textAlign: "center", marginTop: 4 }}>{t.auth.signinHint}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: "center" }} onClick={() => quick("admin")}>Try admin</button>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: "center" }} onClick={() => quick("member")}>Try member</button>
-            </div>
           </div>
         </form>
       </div>
