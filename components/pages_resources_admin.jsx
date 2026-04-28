@@ -418,21 +418,24 @@ function AdminMembers() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
   const [members, setMembers] = useState([...D.members]);
+  const [alumni, setAlumni] = useState([...(D.alumni || [])]);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  function refresh() {
+    setMembers([...D.members]);
+    setAlumni([...(D.alumni || [])]);
+  }
 
   async function save(m) {
     setSaving(true);
     const yearInt = parseInt(String(m.year).replace(/[^0-9]/g, "")) || null;
     const isAlumni = (m.group === "alumni");
     const payload = {
-      name: m.name,
-      name_cn: m.nameCn || "",
-      role: m.role || "",
-      role_cn: m.roleCn || "",
+      name: m.name, name_cn: m.nameCn || "",
+      role: m.role || "", role_cn: m.roleCn || "",
       research_interests: m.focus || "",
-      bio: m.bio || "",
-      bio_cn: m.bioCn || "",
+      bio: m.bio || "", bio_cn: m.bioCn || "",
       email: m.email || "",
       joined_year: yearInt,
       active: !isAlumni,
@@ -441,35 +444,43 @@ function AdminMembers() {
     try {
       if (isUUID(m.id)) {
         await window.SUPABASE.update("members", m.id, payload);
-        const i = D.members.findIndex(x => x.id === m.id);
-        if (i >= 0) D.members[i] = { ...m, active: !isAlumni };
+        // Move between arrays in memory
+        const fromMembers = D.members.findIndex(x => x.id === m.id);
+        const fromAlumni = (D.alumni || []).findIndex(x => x.id === m.id);
+        if (isAlumni) {
+          if (fromMembers >= 0) {
+            const moved = D.members.splice(fromMembers, 1)[0];
+            if (!D.alumni) D.alumni = [];
+            if (!D.alumni.find(a => a.id === m.id)) {
+              D.alumni.push({ id: m.id, name: m.name, nameCn: m.nameCn, role: m.role, next: "", active: false });
+            }
+          }
+        } else {
+          if (fromAlumni >= 0) {
+            D.alumni.splice(fromAlumni, 1);
+            if (!D.members.find(x => x.id === m.id)) {
+              D.members.push({ ...m, active: true, year: yearInt ? yearInt + "–" : "" });
+            }
+          } else if (fromMembers >= 0) {
+            D.members[fromMembers] = { ...m, active: true };
+          }
+        }
       } else {
         const result = await window.SUPABASE.insert("members", payload);
         const newId = Array.isArray(result) && result[0] ? result[0].id : ("m" + Date.now());
         const newMember = { ...m, id: newId, year: yearInt ? yearInt + "–" : "", active: !isAlumni };
         if (isAlumni) {
           if (!D.alumni) D.alumni = [];
-          D.alumni.push({ name: newMember.name, nameCn: newMember.nameCn, role: newMember.role, next: "" });
+          D.alumni.push({ id: newId, name: m.name, nameCn: m.nameCn, role: m.role, next: "", active: false });
         } else {
           D.members.push(newMember);
         }
       }
-      // If existing member moved to alumni, migrate arrays
-      if (isUUID(m.id) && isAlumni) {
-        const idx = D.members.findIndex(x => x.id === m.id);
-        if (idx >= 0) {
-          const moved = D.members.splice(idx, 1)[0];
-          if (!D.alumni) D.alumni = [];
-          if (!D.alumni.find(a => a.name === moved.name)) {
-            D.alumni.push({ name: moved.name, nameCn: moved.nameCn, role: moved.role, next: "" });
-          }
-        }
-      }
-      setMembers([...D.members]);
+      refresh();
       addToast(lang === "en" ? "Saved" : "已保存");
       setEditing(null);
     } catch (e) {
-      addToast(lang === "en" ? "❌ Save failed — check Supabase permissions" : "❌ 保存失败，请检查数据库权限");
+      addToast(lang === "en" ? "❌ Save failed" : "❌ 保存失败");
     } finally {
       setSaving(false);
     }
@@ -477,9 +488,11 @@ function AdminMembers() {
 
   async function remove(id) {
     if (!window.confirm(lang === "en" ? "Remove this member?" : "确认删除此成员？")) return;
-    const i = D.members.findIndex(m => m.id === id);
-    if (i >= 0) D.members.splice(i, 1);
-    setMembers([...D.members]);
+    const fromMembers = D.members.findIndex(m => m.id === id);
+    const fromAlumni = (D.alumni || []).findIndex(m => m.id === id);
+    if (fromMembers >= 0) D.members.splice(fromMembers, 1);
+    if (fromAlumni >= 0) D.alumni.splice(fromAlumni, 1);
+    refresh();
     if (isUUID(id)) {
       try { await window.SUPABASE.remove("members", id); } catch (e) {}
     }
@@ -493,24 +506,50 @@ function AdminMembers() {
           <Icon.plus /> {lang === "en" ? "Add member" : "添加成员"}
         </button>
       } />
-      <table className="table">
-        <thead><tr><th>Name</th><th>Role</th><th>Focus</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+
+      {/* Current members */}
+      <div className="eyebrow" style={{ marginBottom: 10 }}>{lang === "en" ? "Current members" : "当前成员"}</div>
+      <table className="table" style={{ marginBottom: 48 }}>
+        <thead><tr><th>Name</th><th>Role</th><th>Focus</th><th>Joined</th><th></th></tr></thead>
         <tbody>
           {members.map(m => (
             <tr key={m.id}>
               <td><strong>{m.name}</strong> <span style={{ color: "var(--ink-3)", marginLeft: 8 }}>{m.nameCn}</span></td>
               <td style={{ fontSize: 13 }}>{m.role}</td>
-              <td style={{ fontSize: 13, color: "var(--ink-2)", maxWidth: 280 }}>{m.focus}</td>
+              <td style={{ fontSize: 13, color: "var(--ink-2)", maxWidth: 240 }}>{m.focus}</td>
               <td style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{m.year}</td>
-              <td><span className="chip">{m.group || "current"}</span></td>
               <td style={{ textAlign: "right" }}>
-                <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...m })}><Icon.edit /></button>
+                <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...m, group: "current" })}><Icon.edit /></button>
                 <button className="btn btn-text btn-sm" onClick={() => remove(m.id)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
               </td>
             </tr>
           ))}
+          {members.length === 0 && <tr><td colSpan={5} style={{ color: "var(--ink-3)", textAlign: "center", padding: 24 }}>No current members</td></tr>}
         </tbody>
       </table>
+
+      {/* Alumni */}
+      <div className="eyebrow" style={{ marginBottom: 10 }}>{lang === "en" ? "Graduated members (Alumni)" : "已毕业成员"}</div>
+      <table className="table" style={{ marginBottom: 32 }}>
+        <thead><tr><th>Name</th><th>Role</th><th>Current position</th><th></th></tr></thead>
+        <tbody>
+          {alumni.map((a, i) => (
+            <tr key={a.id || i}>
+              <td><strong>{a.name}</strong> <span style={{ color: "var(--ink-3)", marginLeft: 8 }}>{a.nameCn}</span></td>
+              <td style={{ fontSize: 13 }}>{a.role}</td>
+              <td style={{ fontSize: 13, color: "var(--ink-2)" }}>{a.next || "—"}</td>
+              <td style={{ textAlign: "right" }}>
+                {a.id && isUUID(a.id) && (
+                  <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...a, group: "alumni", focus: "", focusCn: "", year: "", email: "" })}><Icon.edit /></button>
+                )}
+                <button className="btn btn-text btn-sm" onClick={() => remove(a.id || a.name)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
+              </td>
+            </tr>
+          ))}
+          {alumni.length === 0 && <tr><td colSpan={4} style={{ color: "var(--ink-3)", textAlign: "center", padding: 24 }}>No alumni yet</td></tr>}
+        </tbody>
+      </table>
+
       {editing && <EditMemberModal member={editing} onSave={save} onClose={() => setEditing(null)} saving={saving} />}
     </div>
   );
@@ -585,7 +624,7 @@ function AdminResources() {
   }
 
   async function upload(fileData, rawFile) {
-    let url = "";
+    let fileUrl = "";
     let size = "";
 
     if (rawFile) {
@@ -595,34 +634,42 @@ function AdminResources() {
       try {
         const safeName = rawFile.name.replace(/\s+/g, "_");
         const path = `${Date.now()}_${safeName}`;
-        url = await window.SUPABASE.uploadFile("lab-resources", path, rawFile);
+        fileUrl = await window.SUPABASE.uploadFile("lab-resources", path, rawFile);
       } catch (e) {
-        addToast(lang === "en" ? "⚠ File upload to storage failed — saving metadata only" : "⚠ 文件上传失败，仅保存元数据记录");
+        addToast(lang === "en" ? "⚠ File upload failed — saving record only" : "⚠ 文件上传失败，仅保存记录");
       }
     }
 
-    const metadata = {
-      name: fileData.name,
+    // Use correct DB field names: title, file_url, file_type
+    const dbPayload = {
+      title: fileData.name,
       category: fileData.category,
-      type: fileData.type,
-      size,
-      url,
-      uploader: user.name,
-      downloads: 0,
+      file_type: fileData.type,
+      file_url: fileUrl,
+      is_public: false,
+      description: "",
     };
 
     let newId = "f" + Date.now();
     try {
-      const result = await window.SUPABASE.insert("resources", {
-        ...metadata,
-        uploaded_at: new Date().toISOString(),
-      });
+      const result = await window.SUPABASE.insert("resources", dbPayload);
       if (Array.isArray(result) && result[0]) newId = result[0].id;
     } catch (e) {
-      // resources table may not exist yet — save locally only
+      addToast(lang === "en" ? "❌ Failed to save record" : "❌ 记录保存失败");
     }
 
-    const newFile = { ...metadata, id: newId, uploaded: new Date().toISOString().slice(0, 10) };
+    // Frontend object uses frontend field names
+    const newFile = {
+      id: newId,
+      name: fileData.name,
+      category: fileData.category,
+      type: fileData.type,
+      size,
+      url: fileUrl,
+      uploader: user.name,
+      downloads: 0,
+      uploaded: new Date().toISOString().slice(0, 10),
+    };
     D.resources.unshift(newFile);
     setFiles([...D.resources]);
     addToast((lang === "en" ? "Uploaded · " : "已上传 · ") + fileData.name);
