@@ -147,6 +147,7 @@ window.SUPABASE.loadAll = async function () {
         paperTitle: r.paper_title || "",
         researchField: r.research_field || "",
         presentationDate: r.presentation_date || "",
+        source: r.source || "",
       }));
 
     }
