@@ -12,6 +12,7 @@ function ResourcesPage() {
   const D = window.LAB_DATA;
   const [files, setFiles] = useState(D.resources);
   const [activeCat, setActiveCat] = useState("All");
+  const [showUpload, setShowUpload] = useState(false);
 
   const allCats = useMemo(() => Array.from(new Set(files.map(f => f.category))), [files]);
   const visibleCats = user.role === "guest" ? ["Lab Meeting"] : allCats;
@@ -36,10 +37,57 @@ function ResourcesPage() {
     }
   }
 
+  // Member upload handler (same logic as AdminResources)
+  async function handleUpload(fileData, rawFile) {
+    let fileUrl = "";
+    let size = "";
+    if (rawFile) {
+      size = rawFile.size < 1024 * 1024
+        ? Math.round(rawFile.size / 1024) + " KB"
+        : (rawFile.size / 1024 / 1024).toFixed(1) + " MB";
+      try {
+        const safeName = rawFile.name.replace(/\s+/g, "_");
+        fileUrl = await window.SUPABASE.uploadFile("lab-resources", `${Date.now()}_${safeName}`, rawFile);
+      } catch (e) {
+        addToast(lang === "en" ? "⚠ File upload failed — saving record only" : "⚠ 文件上传失败，仅保存记录");
+      }
+    }
+    const dbPayload = {
+      title: fileData.name, category: fileData.category,
+      file_type: fileData.type, file_url: fileUrl,
+      is_public: false, description: "",
+    };
+    let newId = "f" + Date.now();
+    try {
+      const result = await window.SUPABASE.insert("resources", dbPayload);
+      if (Array.isArray(result) && result[0]) newId = result[0].id;
+    } catch (e) {}
+    const newFile = {
+      id: newId, name: fileData.name, category: fileData.category,
+      type: fileData.type, size, url: fileUrl,
+      uploader: user.name, downloads: 0,
+      uploaded: new Date().toISOString().slice(0, 10),
+    };
+    D.resources.unshift(newFile);
+    setFiles([...D.resources]);
+    addToast((lang === "en" ? "Uploaded · " : "已上传 · ") + fileData.name);
+    setShowUpload(false);
+  }
+
   return (
     <div className="page-fade container" style={{ padding: "64px 32px 0" }}>
-      <div className="eyebrow" style={{ marginBottom: 16 }}>Resources · 共享资源</div>
-      <h1 style={{ marginBottom: 24 }}>{lang === "en" ? "Shared lab resources." : "组内共享资源。"}</h1>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 16 }}>Resources · 共享资源</div>
+          <h1 style={{ marginBottom: 0 }}>{lang === "en" ? "Shared lab resources." : "组内共享资源。"}</h1>
+        </div>
+        {/* Upload button visible to members and admin */}
+        {(user.role === "member" || user.role === "admin") && (
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => setShowUpload(true)}>
+            <Icon.upload /> {lang === "en" ? "Upload file" : "上传文件"}
+          </button>
+        )}
+      </div>
       <p className="lead" style={{ marginBottom: 40 }}>
         {lang === "en"
           ? "Protocols, journal-club presentations, schedules, and inventories — maintained by the lab, for the lab."
@@ -48,12 +96,9 @@ function ResourcesPage() {
 
       {user.role === "guest" && (
         <div style={{
-          padding: 24,
-          background: "var(--bg-2)",
-          border: "1px solid var(--line)",
-          borderLeft: "3px solid var(--brick)",
-          borderRadius: "0 4px 4px 0",
-          marginBottom: 40,
+          padding: 24, background: "var(--bg-2)",
+          border: "1px solid var(--line)", borderLeft: "3px solid var(--brick)",
+          borderRadius: "0 4px 4px 0", marginBottom: 40,
           display: "flex", alignItems: "center", gap: 24, justifyContent: "space-between", flexWrap: "wrap",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -149,6 +194,7 @@ function ResourcesPage() {
           )}
         </div>
       </div>
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} />}
     </div>
   );
 }
