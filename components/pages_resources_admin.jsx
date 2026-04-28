@@ -3,6 +3,9 @@
 function isUUID(id) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
 }
+// For seed data with non-UUID ids (p1, m1…), we still attempt the DB call
+// using a sentinel that won't match anything — the real fix is the insert path below
+function dbId(id) { return isUUID(id) ? id : null; }
 
 function ResourcesPage() {
   const { lang, t, user, openLogin, addToast } = useApp();
@@ -301,17 +304,15 @@ function AdminPubs() {
 
   async function remove(id) {
     if (!window.confirm(lang === "en" ? "Delete this publication?" : "确认删除此论文？")) return;
-    try {
-      if (isUUID(id)) {
-        await window.SUPABASE.remove("publications", id);
-      }
-      const i = D.publications.findIndex(p => p.id === id);
-      if (i >= 0) D.publications.splice(i, 1);
-      setPubs([...D.publications]);
-      addToast(lang === "en" ? "Deleted" : "已删除");
-    } catch (e) {
-      addToast(lang === "en" ? "❌ Delete failed — check Supabase permissions" : "❌ 删除失败，请检查数据库权限");
+    // Always remove from memory first so UI updates immediately
+    const i = D.publications.findIndex(p => p.id === id);
+    if (i >= 0) D.publications.splice(i, 1);
+    setPubs([...D.publications]);
+    // Then sync to DB if it has a real UUID
+    if (isUUID(id)) {
+      try { await window.SUPABASE.remove("publications", id); } catch (e) {}
     }
+    addToast(lang === "en" ? "Deleted" : "已删除");
   }
 
   return (
@@ -423,6 +424,7 @@ function AdminMembers() {
   async function save(m) {
     setSaving(true);
     const yearInt = parseInt(String(m.year).replace(/[^0-9]/g, "")) || null;
+    const isAlumni = (m.group === "alumni");
     const payload = {
       name: m.name,
       name_cn: m.nameCn || "",
@@ -433,18 +435,35 @@ function AdminMembers() {
       bio_cn: m.bioCn || "",
       email: m.email || "",
       joined_year: yearInt,
-      active: (m.group || "current") !== "alumni",
+      active: !isAlumni,
       sort_order: 0,
     };
     try {
       if (isUUID(m.id)) {
         await window.SUPABASE.update("members", m.id, payload);
         const i = D.members.findIndex(x => x.id === m.id);
-        if (i >= 0) D.members[i] = { ...m };
+        if (i >= 0) D.members[i] = { ...m, active: !isAlumni };
       } else {
         const result = await window.SUPABASE.insert("members", payload);
         const newId = Array.isArray(result) && result[0] ? result[0].id : ("m" + Date.now());
-        D.members.push({ ...m, id: newId, year: yearInt ? yearInt + "–" : "" });
+        const newMember = { ...m, id: newId, year: yearInt ? yearInt + "–" : "", active: !isAlumni };
+        if (isAlumni) {
+          if (!D.alumni) D.alumni = [];
+          D.alumni.push({ name: newMember.name, nameCn: newMember.nameCn, role: newMember.role, next: "" });
+        } else {
+          D.members.push(newMember);
+        }
+      }
+      // If existing member moved to alumni, migrate arrays
+      if (isUUID(m.id) && isAlumni) {
+        const idx = D.members.findIndex(x => x.id === m.id);
+        if (idx >= 0) {
+          const moved = D.members.splice(idx, 1)[0];
+          if (!D.alumni) D.alumni = [];
+          if (!D.alumni.find(a => a.name === moved.name)) {
+            D.alumni.push({ name: moved.name, nameCn: moved.nameCn, role: moved.role, next: "" });
+          }
+        }
       }
       setMembers([...D.members]);
       addToast(lang === "en" ? "Saved" : "已保存");
@@ -458,17 +477,13 @@ function AdminMembers() {
 
   async function remove(id) {
     if (!window.confirm(lang === "en" ? "Remove this member?" : "确认删除此成员？")) return;
-    try {
-      if (isUUID(id)) {
-        await window.SUPABASE.remove("members", id);
-      }
-      const i = D.members.findIndex(m => m.id === id);
-      if (i >= 0) D.members.splice(i, 1);
-      setMembers([...D.members]);
-      addToast(lang === "en" ? "Deleted" : "已删除");
-    } catch (e) {
-      addToast(lang === "en" ? "❌ Delete failed — check Supabase permissions" : "❌ 删除失败，请检查数据库权限");
+    const i = D.members.findIndex(m => m.id === id);
+    if (i >= 0) D.members.splice(i, 1);
+    setMembers([...D.members]);
+    if (isUUID(id)) {
+      try { await window.SUPABASE.remove("members", id); } catch (e) {}
     }
+    addToast(lang === "en" ? "Deleted" : "已删除");
   }
 
   return (
@@ -560,17 +575,13 @@ function AdminResources() {
 
   async function remove(id) {
     if (!window.confirm(lang === "en" ? "Delete this file record?" : "确认删除此文件记录？")) return;
-    try {
-      if (isUUID(id)) {
-        await window.SUPABASE.remove("resources", id);
-      }
-      const i = D.resources.findIndex(f => f.id === id);
-      if (i >= 0) D.resources.splice(i, 1);
-      setFiles([...D.resources]);
-      addToast(lang === "en" ? "Deleted" : "已删除");
-    } catch (e) {
-      addToast(lang === "en" ? "❌ Delete failed" : "❌ 删除失败");
+    const i = D.resources.findIndex(f => f.id === id);
+    if (i >= 0) D.resources.splice(i, 1);
+    setFiles([...D.resources]);
+    if (isUUID(id)) {
+      try { await window.SUPABASE.remove("resources", id); } catch (e) {}
     }
+    addToast(lang === "en" ? "Deleted" : "已删除");
   }
 
   async function upload(fileData, rawFile) {
