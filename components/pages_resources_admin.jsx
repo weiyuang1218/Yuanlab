@@ -56,6 +56,7 @@ function ResourcesPage() {
       title: fileData.name, category: fileData.category,
       file_type: fileData.type, file_url: fileUrl,
       is_public: false, description: "",
+      uploader: user.name,
     };
     let newId = "f" + Date.now();
     try {
@@ -694,6 +695,7 @@ function AdminResources() {
       file_url: fileUrl,
       is_public: false,
       description: "",
+      uploader: user.name,
     };
 
     let newId = "f" + Date.now();
