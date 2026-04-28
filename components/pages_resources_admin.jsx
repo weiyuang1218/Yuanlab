@@ -1,12 +1,15 @@
 // Resources (members-only gating) + Admin console
 
+function isUUID(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""));
+}
+
 function ResourcesPage() {
   const { lang, t, user, openLogin, addToast } = useApp();
   const D = window.LAB_DATA;
   const [files, setFiles] = useState(D.resources);
   const [activeCat, setActiveCat] = useState("All");
 
-  // Categories: visitors only see Lab Meeting (sample public).
   const allCats = useMemo(() => Array.from(new Set(files.map(f => f.category))), [files]);
   const visibleCats = user.role === "guest" ? ["Lab Meeting"] : allCats;
   const cats = ["All", ...visibleCats];
@@ -16,8 +19,18 @@ function ResourcesPage() {
   );
 
   function download(f) {
-    setFiles(prev => prev.map(x => x.id === f.id ? { ...x, downloads: x.downloads + 1 } : x));
-    addToast(`${lang === "en" ? "Downloaded" : "已下载"} · ${f.name}`);
+    const newCount = f.downloads + 1;
+    const updated = files.map(x => x.id === f.id ? { ...x, downloads: newCount } : x);
+    setFiles(updated);
+    D.resources = updated;
+    if (isUUID(f.id)) {
+      window.SUPABASE.update("resources", f.id, { downloads: newCount }).catch(() => {});
+    }
+    if (f.url) {
+      window.open(f.url, "_blank");
+    } else {
+      addToast(`${lang === "en" ? "Downloaded" : "已下载"} · ${f.name}`);
+    }
   }
 
   return (
@@ -30,7 +43,6 @@ function ResourcesPage() {
           : "实验方法、文献汇报、排班、库存清单 —— 由组内维护，服务组内。"}
       </p>
 
-      {/* Gate banner */}
       {user.role === "guest" && (
         <div style={{
           padding: 24,
@@ -42,7 +54,7 @@ function ResourcesPage() {
           display: "flex", alignItems: "center", gap: 24, justifyContent: "space-between", flexWrap: "wrap",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <Icon.lock /> 
+            <Icon.lock />
             <div>
               <h4 style={{ marginBottom: 4 }}>{t.resources.gateTitle}</h4>
               <p style={{ margin: 0, fontSize: 13.5 }}>{t.resources.gateBody}</p>
@@ -55,7 +67,6 @@ function ResourcesPage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 40 }}>
-        {/* Sidebar */}
         <aside>
           <div className="eyebrow" style={{ marginBottom: 12 }}>{t.resources.categories}</div>
           <div style={{ display: "flex", flexDirection: "column" }}>
@@ -85,7 +96,6 @@ function ResourcesPage() {
           )}
         </aside>
 
-        {/* File table */}
         <div>
           {visible.length === 0 ? (
             <div style={{ padding: 64, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
@@ -249,40 +259,71 @@ function AdminDashboard() {
   );
 }
 
+// ── Publications ──────────────────────────────────────────────────────────────
+
 function AdminPubs() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
   const [pubs, setPubs] = useState([...D.publications]);
   const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  function save(p) {
-    if (p.id) {
-      const i = D.publications.findIndex(x => x.id === p.id);
-      if (i >= 0) D.publications[i] = p;
-    } else {
-      D.publications.unshift({ ...p, id: "p" + Date.now() });
+  async function save(p) {
+    setSaving(true);
+    const payload = {
+      year: Number(p.year),
+      title: p.title,
+      authors: p.authors,
+      journal: p.journal,
+      tags: p.tag ? [p.tag] : [],
+      featured: !!p.featured,
+      doi: p.doi || "",
+    };
+    try {
+      if (isUUID(p.id)) {
+        await window.SUPABASE.update("publications", p.id, payload);
+        const i = D.publications.findIndex(x => x.id === p.id);
+        if (i >= 0) D.publications[i] = { ...p };
+      } else {
+        const result = await window.SUPABASE.insert("publications", payload);
+        const newId = Array.isArray(result) && result[0] ? result[0].id : ("p" + Date.now());
+        D.publications.unshift({ ...p, id: newId });
+      }
+      setPubs([...D.publications]);
+      addToast(lang === "en" ? "Saved" : "已保存");
+      setEditing(null);
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Save failed — check Supabase permissions" : "❌ 保存失败，请检查数据库权限");
+    } finally {
+      setSaving(false);
     }
-    setPubs([...D.publications]);
-    addToast(lang === "en" ? "Saved" : "已保存");
-    setEditing(null);
   }
-  function remove(id) {
-    const i = D.publications.findIndex(p => p.id === id);
-    if (i >= 0) D.publications.splice(i, 1);
-    setPubs([...D.publications]);
-    addToast(lang === "en" ? "Deleted" : "已删除");
+
+  async function remove(id) {
+    if (!window.confirm(lang === "en" ? "Delete this publication?" : "确认删除此论文？")) return;
+    try {
+      if (isUUID(id)) {
+        await window.SUPABASE.remove("publications", id);
+      }
+      const i = D.publications.findIndex(p => p.id === id);
+      if (i >= 0) D.publications.splice(i, 1);
+      setPubs([...D.publications]);
+      addToast(lang === "en" ? "Deleted" : "已删除");
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Delete failed — check Supabase permissions" : "❌ 删除失败，请检查数据库权限");
+    }
   }
 
   return (
     <div>
       <SectionHeader eyebrow="Publications" title={lang === "en" ? "Manage publications" : "管理论文"} action={
-        <button className="btn btn-primary btn-sm" onClick={() => setEditing({ year: new Date().getFullYear(), authors: "", title: "", journal: "", volume: "", tag: "First", featured: false, doi: "" })}>
+        <button className="btn btn-primary btn-sm" onClick={() => setEditing({ year: new Date().getFullYear(), authors: "", title: "", journal: "", volume: "", tag: "Corresponding", featured: false, doi: "" })}>
           <Icon.plus /> {lang === "en" ? "Add" : "添加"}
         </button>
       } />
       <table className="table">
         <thead>
-          <tr><th style={{ width: 60 }}>Year</th><th>Title</th><th style={{ width: 100 }}>Tag</th><th style={{ width: 80 }}></th></tr>
+          <tr><th style={{ width: 60 }}>Year</th><th>Title</th><th style={{ width: 120 }}>Tag</th><th style={{ width: 80 }}></th></tr>
         </thead>
         <tbody>
           {pubs.map(p => (
@@ -294,19 +335,19 @@ function AdminPubs() {
               </td>
               <td>{p.featured ? <span className="chip accent">★ {p.tag}</span> : <span className="chip">{p.tag}</span>}</td>
               <td style={{ textAlign: "right" }}>
-                <button className="btn btn-text btn-sm" onClick={() => setEditing(p)}><Icon.edit /></button>
+                <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...p })}><Icon.edit /></button>
                 <button className="btn btn-text btn-sm" onClick={() => remove(p.id)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {editing && <EditPubModal pub={editing} onSave={save} onClose={() => setEditing(null)} />}
+      {editing && <EditPubModal pub={editing} onSave={save} onClose={() => setEditing(null)} saving={saving} />}
     </div>
   );
 }
 
-function EditPubModal({ pub, onSave, onClose }) {
+function EditPubModal({ pub, onSave, onClose, saving }) {
   const { lang } = useApp();
   const [p, setP] = useState(pub);
   return (
@@ -325,7 +366,12 @@ function EditPubModal({ pub, onSave, onClose }) {
             <div>
               <label className="label">Tag</label>
               <select className="select" value={p.tag} onChange={e => setP({ ...p, tag: e.target.value })}>
-                <option>First</option><option>Corresponding</option><option>First/Co-corresponding</option><option>Co-author</option><option>Book · Lead Editor</option>
+                <option>First</option>
+                <option>Corresponding</option>
+                <option>Co-corresponding</option>
+                <option>First/Co-corresponding</option>
+                <option>Co-author</option>
+                <option>Book · Lead Editor</option>
               </select>
             </div>
           </div>
@@ -342,7 +388,7 @@ function EditPubModal({ pub, onSave, onClose }) {
             </div>
             <div>
               <label className="label">Volume / Pages</label>
-              <input className="input" value={p.volume} onChange={e => setP({ ...p, volume: e.target.value })} />
+              <input className="input" value={p.volume || ""} onChange={e => setP({ ...p, volume: e.target.value })} />
             </div>
           </div>
           <div style={{ height: 12 }} />
@@ -356,35 +402,73 @@ function EditPubModal({ pub, onSave, onClose }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onSave(p)}><Icon.check /> {lang === "en" ? "Save" : "保存"}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onSave(p)} disabled={saving || !p.title}>
+            {saving ? (lang === "en" ? "Saving…" : "保存中…") : <><Icon.check /> {lang === "en" ? "Save" : "保存"}</>}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
+// ── Members ───────────────────────────────────────────────────────────────────
+
 function AdminMembers() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
   const [members, setMembers] = useState([...D.members]);
   const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  function save(m) {
-    if (m.id) {
-      const i = D.members.findIndex(x => x.id === m.id);
-      if (i >= 0) D.members[i] = m;
-    } else {
-      D.members.push({ ...m, id: "m" + Date.now() });
+  async function save(m) {
+    setSaving(true);
+    const yearInt = parseInt(String(m.year).replace(/[^0-9]/g, "")) || null;
+    const payload = {
+      name: m.name,
+      name_cn: m.nameCn || "",
+      role: m.role || "",
+      role_cn: m.roleCn || "",
+      research_interests: m.focus || "",
+      bio: m.bio || "",
+      bio_cn: m.bioCn || "",
+      email: m.email || "",
+      joined_year: yearInt,
+      active: (m.group || "current") !== "alumni",
+      sort_order: 0,
+    };
+    try {
+      if (isUUID(m.id)) {
+        await window.SUPABASE.update("members", m.id, payload);
+        const i = D.members.findIndex(x => x.id === m.id);
+        if (i >= 0) D.members[i] = { ...m };
+      } else {
+        const result = await window.SUPABASE.insert("members", payload);
+        const newId = Array.isArray(result) && result[0] ? result[0].id : ("m" + Date.now());
+        D.members.push({ ...m, id: newId, year: yearInt ? yearInt + "–" : "" });
+      }
+      setMembers([...D.members]);
+      addToast(lang === "en" ? "Saved" : "已保存");
+      setEditing(null);
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Save failed — check Supabase permissions" : "❌ 保存失败，请检查数据库权限");
+    } finally {
+      setSaving(false);
     }
-    setMembers([...D.members]);
-    addToast(lang === "en" ? "Saved" : "已保存");
-    setEditing(null);
   }
-  function remove(id) {
-    const i = D.members.findIndex(m => m.id === id);
-    if (i >= 0) D.members.splice(i, 1);
-    setMembers([...D.members]);
-    addToast(lang === "en" ? "Deleted" : "已删除");
+
+  async function remove(id) {
+    if (!window.confirm(lang === "en" ? "Remove this member?" : "确认删除此成员？")) return;
+    try {
+      if (isUUID(id)) {
+        await window.SUPABASE.remove("members", id);
+      }
+      const i = D.members.findIndex(m => m.id === id);
+      if (i >= 0) D.members.splice(i, 1);
+      setMembers([...D.members]);
+      addToast(lang === "en" ? "Deleted" : "已删除");
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Delete failed — check Supabase permissions" : "❌ 删除失败，请检查数据库权限");
+    }
   }
 
   return (
@@ -405,21 +489,22 @@ function AdminMembers() {
               <td style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{m.year}</td>
               <td><span className="chip">{m.group || "current"}</span></td>
               <td style={{ textAlign: "right" }}>
-                <button className="btn btn-text btn-sm" onClick={() => setEditing(m)}><Icon.edit /></button>
+                <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...m })}><Icon.edit /></button>
                 <button className="btn btn-text btn-sm" onClick={() => remove(m.id)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {editing && <EditMemberModal member={editing} onSave={save} onClose={() => setEditing(null)} />}
+      {editing && <EditMemberModal member={editing} onSave={save} onClose={() => setEditing(null)} saving={saving} />}
     </div>
   );
 }
 
-function EditMemberModal({ member, onSave, onClose }) {
+function EditMemberModal({ member, onSave, onClose, saving }) {
   const { lang } = useApp();
-  const [m, setM] = useState(member);
+  const yearNum = parseInt(String(member.year).replace(/[^0-9]/g, "")) || new Date().getFullYear();
+  const [m, setM] = useState({ ...member, year: yearNum });
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
@@ -439,13 +524,13 @@ function EditMemberModal({ member, onSave, onClose }) {
           </div>
           <div style={{ height: 12 }} />
           <label className="label">Research focus (English)</label>
-          <input className="input" value={m.focus} onChange={e => setM({ ...m, focus: e.target.value })} />
+          <input className="input" value={m.focus || ""} onChange={e => setM({ ...m, focus: e.target.value })} />
           <div style={{ height: 12 }} />
           <label className="label">研究方向（中文）</label>
-          <input className="input" value={m.focusCn} onChange={e => setM({ ...m, focusCn: e.target.value })} />
+          <input className="input" value={m.focusCn || ""} onChange={e => setM({ ...m, focusCn: e.target.value })} />
           <div style={{ height: 12 }} />
           <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 140px", gap: 12 }}>
-            <div><label className="label">Year</label><input className="input" type="number" value={m.year} onChange={e => setM({ ...m, year: Number(e.target.value) })} /></div>
+            <div><label className="label">Year joined</label><input className="input" type="number" value={m.year} onChange={e => setM({ ...m, year: Number(e.target.value) })} /></div>
             <div><label className="label">Email</label><input className="input" value={m.email || ""} onChange={e => setM({ ...m, email: e.target.value })} /></div>
             <div><label className="label">Status</label>
               <select className="select" value={m.group || "current"} onChange={e => setM({ ...m, group: e.target.value })}>
@@ -456,28 +541,80 @@ function EditMemberModal({ member, onSave, onClose }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onSave(m)} disabled={!m.name}><Icon.check /> {lang === "en" ? "Save" : "保存"}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onSave(m)} disabled={saving || !m.name}>
+            {saving ? (lang === "en" ? "Saving…" : "保存中…") : <><Icon.check /> {lang === "en" ? "Save" : "保存"}</>}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
+// ── Resources ─────────────────────────────────────────────────────────────────
+
 function AdminResources() {
-  const { lang, addToast } = useApp();
+  const { lang, user, addToast } = useApp();
   const D = window.LAB_DATA;
   const [files, setFiles] = useState([...D.resources]);
   const [showUpload, setShowUpload] = useState(false);
 
-  function remove(id) {
-    const i = D.resources.findIndex(f => f.id === id);
-    if (i >= 0) D.resources.splice(i, 1);
-    setFiles([...D.resources]);
+  async function remove(id) {
+    if (!window.confirm(lang === "en" ? "Delete this file record?" : "确认删除此文件记录？")) return;
+    try {
+      if (isUUID(id)) {
+        await window.SUPABASE.remove("resources", id);
+      }
+      const i = D.resources.findIndex(f => f.id === id);
+      if (i >= 0) D.resources.splice(i, 1);
+      setFiles([...D.resources]);
+      addToast(lang === "en" ? "Deleted" : "已删除");
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Delete failed" : "❌ 删除失败");
+    }
   }
-  function upload(file) {
-    D.resources.unshift({ ...file, id: "f" + Date.now(), downloads: 0, uploaded: new Date().toISOString().slice(0, 10) });
+
+  async function upload(fileData, rawFile) {
+    let url = "";
+    let size = "";
+
+    if (rawFile) {
+      size = rawFile.size < 1024 * 1024
+        ? Math.round(rawFile.size / 1024) + " KB"
+        : (rawFile.size / 1024 / 1024).toFixed(1) + " MB";
+      try {
+        const safeName = rawFile.name.replace(/\s+/g, "_");
+        const path = `${Date.now()}_${safeName}`;
+        url = await window.SUPABASE.uploadFile("lab-resources", path, rawFile);
+      } catch (e) {
+        addToast(lang === "en" ? "⚠ File upload to storage failed — saving metadata only" : "⚠ 文件上传失败，仅保存元数据记录");
+      }
+    }
+
+    const metadata = {
+      name: fileData.name,
+      category: fileData.category,
+      type: fileData.type,
+      size,
+      url,
+      uploader: user.name,
+      downloads: 0,
+    };
+
+    let newId = "f" + Date.now();
+    try {
+      const result = await window.SUPABASE.insert("resources", {
+        ...metadata,
+        uploaded_at: new Date().toISOString(),
+      });
+      if (Array.isArray(result) && result[0]) newId = result[0].id;
+    } catch (e) {
+      // resources table may not exist yet — save locally only
+    }
+
+    const newFile = { ...metadata, id: newId, uploaded: new Date().toISOString().slice(0, 10) };
+    D.resources.unshift(newFile);
     setFiles([...D.resources]);
-    addToast((lang === "en" ? "Uploaded · " : "已上传 · ") + file.name);
+    addToast((lang === "en" ? "Uploaded · " : "已上传 · ") + fileData.name);
     setShowUpload(false);
   }
 
@@ -493,14 +630,18 @@ function AdminResources() {
         <tbody>
           {files.map(f => (
             <tr key={f.id}>
-              <td style={{ fontWeight: 500, fontSize: 13.5 }}>{f.name}</td>
+              <td style={{ fontWeight: 500, fontSize: 13.5 }}>
+                {f.url
+                  ? <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", textDecoration: "none" }}>{f.name}</a>
+                  : f.name}
+              </td>
               <td><span className="chip">{f.category}</span></td>
               <td style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>{f.type}</td>
               <td style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-3)" }}>{f.size}</td>
               <td style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-3)" }}>{f.uploaded}</td>
               <td style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{f.downloads}</td>
               <td style={{ textAlign: "right" }}>
-                <button className="btn btn-text btn-sm" onClick={() => { remove(f.id); addToast("Deleted " + f.name); }} style={{ color: "var(--danger)" }}><Icon.trash /></button>
+                <button className="btn btn-text btn-sm" onClick={() => remove(f.id)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
               </td>
             </tr>
           ))}
@@ -512,12 +653,28 @@ function AdminResources() {
 }
 
 function UploadModal({ onClose, onUpload }) {
-  const { lang, user } = useApp();
+  const { lang } = useApp();
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Protocols");
   const [type, setType] = useState("PDF");
   const [drag, setDrag] = useState(false);
-  const fakeSize = ["240 KB", "1.2 MB", "3.4 MB", "8.1 MB"][Math.floor(Math.random() * 4)];
+  const [rawFile, setRawFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  function handleFile(f) {
+    if (!f) return;
+    setRawFile(f);
+    setName(f.name.replace(/\.[^.]+$/, ""));
+    setType((f.name.split(".").pop() || "BIN").toUpperCase().slice(0, 8));
+  }
+
+  async function doUpload() {
+    if (!name) return;
+    setUploading(true);
+    await onUpload({ name, category, type }, rawFile);
+    setUploading(false);
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -527,20 +684,34 @@ function UploadModal({ onClose, onUpload }) {
           <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
         </div>
         <div className="modal-body">
-          <div onDragOver={e => { e.preventDefault(); setDrag(true); }}
-               onDragLeave={() => setDrag(false)}
-               onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) { setName(f.name); setType((f.name.split('.').pop() || 'BIN').toUpperCase()); } }}
-               style={{
-                 padding: 32, border: `1.5px dashed ${drag ? "var(--accent)" : "var(--line-2)"}`,
-                 borderRadius: 6, textAlign: "center", background: drag ? "var(--accent-soft)" : "var(--bg-2)",
-                 marginBottom: 20, transition: "all 0.15s",
-               }}>
+          <input type="file" ref={fileInputRef} style={{ display: "none" }}
+            onChange={e => handleFile(e.target.files[0])} />
+          <div
+            onDragOver={e => { e.preventDefault(); setDrag(true); }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={e => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }}
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            style={{
+              padding: 32, border: `1.5px dashed ${drag ? "var(--accent)" : "var(--line-2)"}`,
+              borderRadius: 6, textAlign: "center",
+              background: rawFile ? "var(--accent-soft)" : drag ? "var(--accent-soft)" : "var(--bg-2)",
+              marginBottom: 20, transition: "all 0.15s", cursor: "pointer",
+            }}>
             <Icon.upload />
-            <p style={{ marginTop: 12, marginBottom: 4, fontSize: 14 }}>
-              {lang === "en" ? "Drop file here or" : "拖拽文件至此处，或"}
-              {" "}<a href="#" onClick={(e) => { e.preventDefault(); setName("uploaded_" + Math.floor(Math.random() * 999) + ".pdf"); setType("PDF"); }} style={{ color: "var(--accent)", borderBottom: "1px solid var(--accent)" }}>{lang === "en" ? "browse" : "选择文件"}</a>
-            </p>
-            <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: 0, fontFamily: "var(--mono)" }}>PDF · DOCX · PPTX · XLSX · ZIP · max 50 MB</p>
+            {rawFile ? (
+              <p style={{ marginTop: 12, marginBottom: 4, fontSize: 14, color: "var(--accent)", fontWeight: 500 }}>
+                ✓ {rawFile.name}
+              </p>
+            ) : (
+              <>
+                <p style={{ marginTop: 12, marginBottom: 4, fontSize: 14 }}>
+                  {lang === "en" ? "Drop file here or click to browse" : "拖拽文件至此处，或点击选择文件"}
+                </p>
+                <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: 0, fontFamily: "var(--mono)" }}>
+                  PDF · DOCX · PPTX · XLSX · ZIP · max 50 MB
+                </p>
+              </>
+            )}
           </div>
           <label className="label">{lang === "en" ? "Display name" : "显示名称"}</label>
           <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. RNA-seq library prep v3.2" />
@@ -549,7 +720,12 @@ function UploadModal({ onClose, onUpload }) {
             <div>
               <label className="label">{lang === "en" ? "Category" : "分类"}</label>
               <select className="select" value={category} onChange={e => setCategory(e.target.value)}>
-                <option>Protocols</option><option>Literature PPT</option><option>Duty Roster</option><option>Lab Meeting</option><option>Reagent Inventory</option><option>Reading Group</option>
+                <option>Protocols</option>
+                <option>Literature PPT</option>
+                <option>Duty Roster</option>
+                <option>Lab Meeting</option>
+                <option>Reagent Inventory</option>
+                <option>Reading Group</option>
               </select>
             </div>
             <div>
@@ -562,9 +738,10 @@ function UploadModal({ onClose, onUpload }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
-          <button className="btn btn-primary btn-sm" disabled={!name}
-            onClick={() => onUpload({ name, category, type, size: fakeSize, uploader: user.name })}>
-            <Icon.upload /> {lang === "en" ? "Upload" : "上传"}
+          <button className="btn btn-primary btn-sm" disabled={!name || uploading} onClick={doUpload}>
+            {uploading
+              ? (lang === "en" ? "Uploading…" : "上传中…")
+              : <><Icon.upload /> {lang === "en" ? "Upload" : "上传"}</>}
           </button>
         </div>
       </div>
@@ -572,11 +749,53 @@ function UploadModal({ onClose, onUpload }) {
   );
 }
 
+// ── News ──────────────────────────────────────────────────────────────────────
+
 function AdminNews() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
   const [news, setNews] = useState([...D.news]);
   const [draft, setDraft] = useState({ date: new Date().toISOString().slice(0, 10), en: "", cn: "" });
+  const [posting, setPosting] = useState(false);
+
+  async function post() {
+    if (!draft.en && !draft.cn) return;
+    setPosting(true);
+    const payload = {
+      published_at: draft.date,
+      content: draft.en,
+      content_cn: draft.cn,
+      title: draft.en,
+      title_cn: draft.cn,
+    };
+    try {
+      const result = await window.SUPABASE.insert("news", payload);
+      const newId = Array.isArray(result) && result[0] ? result[0].id : null;
+      const newItem = { id: newId, date: draft.date, en: draft.en, cn: draft.cn };
+      D.news.unshift(newItem);
+      setNews([...D.news]);
+      setDraft({ date: new Date().toISOString().slice(0, 10), en: "", cn: "" });
+      addToast(lang === "en" ? "Posted" : "已发布");
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Post failed — check Supabase permissions" : "❌ 发布失败，请检查数据库权限");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  async function deleteItem(n, i) {
+    try {
+      if (n.id && isUUID(n.id)) {
+        await window.SUPABASE.remove("news", n.id);
+      }
+      D.news.splice(i, 1);
+      setNews([...D.news]);
+      addToast(lang === "en" ? "Deleted" : "已删除");
+    } catch (e) {
+      addToast(lang === "en" ? "❌ Delete failed" : "❌ 删除失败");
+    }
+  }
+
   return (
     <div>
       <SectionHeader eyebrow="News" title={lang === "en" ? "Manage news" : "管理动态"} action={null} />
@@ -588,13 +807,8 @@ function AdminNews() {
         </div>
         <input className="input" placeholder="中文标题" value={draft.cn} onChange={e => setDraft({ ...draft, cn: e.target.value })} />
         <div style={{ marginTop: 14, textAlign: "right" }}>
-          <button className="btn btn-primary btn-sm" disabled={!draft.en && !draft.cn} onClick={() => {
-            D.news.unshift(draft);
-            setNews([...D.news]);
-            setDraft({ date: new Date().toISOString().slice(0, 10), en: "", cn: "" });
-            addToast(lang === "en" ? "Posted" : "已发布");
-          }}>
-            <Icon.plus /> {lang === "en" ? "Publish" : "发布"}
+          <button className="btn btn-primary btn-sm" disabled={(!draft.en && !draft.cn) || posting} onClick={post}>
+            {posting ? (lang === "en" ? "Posting…" : "发布中…") : <><Icon.plus /> {lang === "en" ? "Publish" : "发布"}</>}
           </button>
         </div>
       </div>
@@ -606,13 +820,15 @@ function AdminNews() {
               <div style={{ fontSize: 13.5 }}>{n.en}</div>
               <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{n.cn}</div>
             </div>
-            <button className="btn btn-text btn-sm" onClick={() => { D.news.splice(i, 1); setNews([...D.news]); addToast("Deleted"); }} style={{ color: "var(--danger)" }}><Icon.trash /></button>
+            <button className="btn btn-text btn-sm" onClick={() => deleteItem(n, i)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
           </div>
         ))}
       </div>
     </div>
   );
 }
+
+// ── Pages ─────────────────────────────────────────────────────────────────────
 
 function AdminPages() {
   const { lang, addToast } = useApp();
@@ -630,12 +846,16 @@ function AdminPages() {
         <label className="label">中文</label>
         <textarea className="textarea" value={missionCn} onChange={e => setMissionCn(e.target.value)} />
         <div style={{ marginTop: 14, textAlign: "right" }}>
-          <button className="btn btn-primary btn-sm" onClick={() => { D.lab.mission.en = missionEn; D.lab.mission.cn = missionCn; addToast(lang === "en" ? "Saved" : "已保存"); }}><Icon.check /> {lang === "en" ? "Save" : "保存"}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { D.lab.mission.en = missionEn; D.lab.mission.cn = missionCn; addToast(lang === "en" ? "Saved" : "已保存"); }}>
+            <Icon.check /> {lang === "en" ? "Save" : "保存"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+// ── Users ─────────────────────────────────────────────────────────────────────
 
 function AdminUsers() {
   const { lang, addToast } = useApp();
