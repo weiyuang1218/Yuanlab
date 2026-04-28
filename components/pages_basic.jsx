@@ -295,8 +295,8 @@ function ContactPage() {
             <div className="eyebrow" style={{ marginBottom: 6 }}>Visiting · 来访</div>
             <p style={{ margin: 0, fontSize: 14, color: "var(--ink-2)" }}>
               {lang === "en"
-                ? "Take Metro Line 13 to Zhangjiang Road station; SHUTCM main campus is a 10-min walk. Building Z3, Floor 4."
-                : "地铁 13 号线张江路站，步行 10 分钟至上海中医药大学主校区，Z3 楼 4 层。"}
+                ? "Take Metro Line 2 to Zhangjiang Hightech station; SHUTCM main campus is a 10-min walk. Innovative Building, Floor 4, School of Integrative Medicine."
+                : "地铁 2 号线至张江高科站，步行 10 分钟至上海中医药大学主校区，科技创新楼 4 层，中西医结合学院。"}
             </p>
           </div>
         </div>
