@@ -59,7 +59,29 @@ window.SUPABASE = {
         "Authorization": `Bearer ${SUPABASE_KEY}`
       }
     });
-    return res.ok;
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "Unknown error");
+      throw new Error(msg);
+    }
+    return true;
+  },
+
+  async uploadFile(bucket, path, file) {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": file.type || "application/octet-stream",
+        "x-upsert": "true",
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "Upload failed");
+      throw new Error(msg);
+    }
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
 };
 
@@ -68,11 +90,12 @@ window.SUPABASE = {
 // 成功后触发 window.dispatchEvent(new Event("labdata:updated"))
 window.SUPABASE.loadAll = async function () {
   try {
-    const [members, publications, news, projects] = await Promise.all([
+    const [members, publications, news, projects, resources] = await Promise.all([
       window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc", filter: "active=eq.true" }),
       window.SUPABASE.query("publications", { order: "year.desc" }),
       window.SUPABASE.query("news", { order: "published_at.desc", limit: 10 }),
       window.SUPABASE.query("projects", { order: "start_year.desc" }),
+      window.SUPABASE.query("resources", { order: "uploaded_at.desc" }),
     ]);
 
     // 只在数据库有内容时覆盖，否则保留 seed 数据
@@ -99,6 +122,7 @@ window.SUPABASE.loadAll = async function () {
     }
     if (news && news.length > 0) {
       window.LAB_DATA.news = news.map(n => ({
+        id: n.id,
         date: n.published_at ? n.published_at.slice(0, 10) : "",
         en: n.content || n.title || "",
         cn: n.content_cn || n.title_cn || "",
@@ -108,6 +132,19 @@ window.SUPABASE.loadAll = async function () {
     }
     if (projects && projects.length > 0) {
       window.LAB_DATA.projects = projects;
+    }
+    if (resources && resources.length > 0) {
+      window.LAB_DATA.resources = resources.map(r => ({
+        id: r.id,
+        name: r.name,
+        category: r.category || "",
+        type: r.type || "",
+        size: r.size || "",
+        url: r.url || "",
+        uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : "",
+        uploader: r.uploader || "",
+        downloads: r.downloads || 0,
+      }));
     }
 
     window.dispatchEvent(new Event("labdata:updated"));
