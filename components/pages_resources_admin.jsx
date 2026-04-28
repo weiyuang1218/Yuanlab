@@ -10,37 +10,54 @@ function dbId(id) { return isUUID(id) ? id : null; }
 function ResourcesPage() {
   const { lang, t, user, openLogin, addToast } = useApp();
   const D = window.LAB_DATA;
-  const [files, setFiles] = useState(D.resources);
+  const [files, setFiles] = useState([...D.resources]);
   const [activeCat, setActiveCat] = useState("All");
   const [showUpload, setShowUpload] = useState(false);
+  const [detail, setDetail] = useState(null);       // file being viewed
+  const [editing, setEditing] = useState(null);     // file being edited
+  const [sortBy, setSortBy] = useState("uploaded"); // "uploaded" | "date"
+  const [sortDir, setSortDir] = useState("desc");
 
   const allCats = useMemo(() => Array.from(new Set(files.map(f => f.category))), [files]);
   const visibleCats = user.role === "guest" ? ["Lab Meeting"] : allCats;
   const cats = ["All", ...visibleCats];
+  const isLitPPT = activeCat === "Literature PPT";
 
-  const visible = files.filter(f =>
-    visibleCats.includes(f.category) && (activeCat === "All" || f.category === activeCat)
-  );
+  const visible = useMemo(() => {
+    let list = files.filter(f =>
+      visibleCats.includes(f.category) && (activeCat === "All" || f.category === activeCat)
+    );
+    // Sort
+    list = [...list].sort((a, b) => {
+      let av, bv;
+      if (sortBy === "date") {
+        av = a.presentationDate || a.uploaded || "";
+        bv = b.presentationDate || b.uploaded || "";
+      } else {
+        av = a.uploaded || "";
+        bv = b.uploaded || "";
+      }
+      return sortDir === "desc" ? bv.localeCompare(av) : av.localeCompare(bv);
+    });
+    return list;
+  }, [files, activeCat, visibleCats, sortBy, sortDir]);
 
-  function download(f) {
-    const newCount = f.downloads + 1;
-    const updated = files.map(x => x.id === f.id ? { ...x, downloads: newCount } : x);
-    setFiles(updated);
-    D.resources = updated;
-    if (isUUID(f.id)) {
-      window.SUPABASE.update("resources", f.id, { downloads: newCount }).catch(() => {});
-    }
-    if (f.url) {
-      window.open(f.url, "_blank");
-    } else {
-      addToast(`${lang === "en" ? "Downloaded" : "已下载"} · ${f.name}`);
-    }
+  function toggleSort(field) {
+    if (sortBy === field) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortBy(field); setSortDir("desc"); }
   }
 
-  // Member upload handler (same logic as AdminResources)
+  function download(f) {
+    const newCount = (f.downloads || 0) + 1;
+    const updated = files.map(x => x.id === f.id ? { ...x, downloads: newCount } : x);
+    setFiles(updated); D.resources = updated;
+    if (isUUID(f.id)) window.SUPABASE.update("resources", f.id, { downloads: newCount }).catch(() => {});
+    if (f.url) window.open(f.url, "_blank");
+    else addToast(`${lang === "en" ? "Downloaded" : "已下载"} · ${f.name}`);
+  }
+
   async function handleUpload(fileData, rawFile) {
-    let fileUrl = "";
-    let size = "";
+    let fileUrl = "", size = "";
     if (rawFile) {
       size = rawFile.size < 1024 * 1024
         ? Math.round(rawFile.size / 1024) + " KB"
@@ -57,6 +74,10 @@ function ResourcesPage() {
       file_type: fileData.type, file_url: fileUrl,
       is_public: false, description: "",
       uploader: user.name,
+      presenter: fileData.presenter || "",
+      paper_title: fileData.paperTitle || "",
+      research_field: fileData.researchField || "",
+      presentation_date: fileData.presentationDate || null,
     };
     let newId = "f" + Date.now();
     try {
@@ -68,11 +89,49 @@ function ResourcesPage() {
       type: fileData.type, size, url: fileUrl,
       uploader: user.name, downloads: 0,
       uploaded: new Date().toISOString().slice(0, 10),
+      presenter: fileData.presenter || "",
+      paperTitle: fileData.paperTitle || "",
+      researchField: fileData.researchField || "",
+      presentationDate: fileData.presentationDate || "",
     };
     D.resources.unshift(newFile);
     setFiles([...D.resources]);
     addToast((lang === "en" ? "Uploaded · " : "已上传 · ") + fileData.name);
     setShowUpload(false);
+  }
+
+  // Save edited detail (members & admin)
+  async function saveDetail(updated) {
+    const dbPayload = {
+      title: updated.name,
+      presenter: updated.presenter || "",
+      paper_title: updated.paperTitle || "",
+      research_field: updated.researchField || "",
+      presentation_date: updated.presentationDate || null,
+    };
+    if (isUUID(updated.id)) {
+      try { await window.SUPABASE.update("resources", updated.id, dbPayload); } catch (e) {}
+    }
+    const newFiles = files.map(f => f.id === updated.id ? { ...f, ...updated } : f);
+    D.resources = newFiles;
+    setFiles(newFiles);
+    setEditing(null);
+    setDetail(updated);
+    addToast(lang === "en" ? "Saved" : "已保存");
+  }
+
+  function SortBtn({ field, label }) {
+    const active = sortBy === field;
+    return (
+      <span onClick={() => toggleSort(field)} style={{
+        cursor: "pointer", userSelect: "none",
+        color: active ? "var(--ink)" : "var(--ink-3)",
+        display: "inline-flex", alignItems: "center", gap: 3,
+      }}>
+        {label}
+        <span style={{ fontSize: 10 }}>{active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}</span>
+      </span>
+    );
   }
 
   return (
@@ -82,7 +141,6 @@ function ResourcesPage() {
           <div className="eyebrow" style={{ marginBottom: 16 }}>Resources · 共享资源</div>
           <h1 style={{ marginBottom: 0 }}>{lang === "en" ? "Shared lab resources." : "组内共享资源。"}</h1>
         </div>
-        {/* Upload button visible to members and admin */}
         {(user.role === "member" || user.role === "admin") && (
           <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => setShowUpload(true)}>
             <Icon.upload /> {lang === "en" ? "Upload file" : "上传文件"}
@@ -129,7 +187,9 @@ function ResourcesPage() {
               }}>
                 <span>{c}</span>
                 <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)" }}>
-                  {c === "All" ? files.filter(f => visibleCats.includes(f.category)).length : files.filter(f => f.category === c).length}
+                  {c === "All"
+                    ? files.filter(f => visibleCats.includes(f.category)).length
+                    : files.filter(f => f.category === c).length}
                 </span>
               </button>
             ))}
@@ -138,9 +198,7 @@ function ResourcesPage() {
             <div style={{ marginTop: 32, padding: 16, background: "var(--bg-2)", borderRadius: 4, border: "1px solid var(--line)" }}>
               <div className="eyebrow" style={{ marginBottom: 6 }}>Logged in as</div>
               <p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{user.name}</p>
-              <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: "2px 0 0", fontFamily: "var(--mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                {user.role}
-              </p>
+              <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: "2px 0 0", fontFamily: "var(--mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>{user.role}</p>
             </div>
           )}
         </aside>
@@ -150,13 +208,56 @@ function ResourcesPage() {
             <div style={{ padding: 64, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
               {lang === "en" ? "No files in this category." : "暂无文件。"}
             </div>
+          ) : isLitPPT ? (
+            /* ── Literature PPT special table ── */
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: "28%" }}>{lang === "en" ? "Session name" : "文件名"}</th>
+                  <th><SortBtn field="date" label={lang === "en" ? "Presentation date" : "汇报日期"} /></th>
+                  <th>{lang === "en" ? "Presenter" : "汇报人"}</th>
+                  <th>{lang === "en" ? "Research field" : "研究领域"}</th>
+                  <th style={{ textAlign: "right" }}><SortBtn field="uploaded" label={lang === "en" ? "Uploaded" : "上传"} /></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map(f => (
+                  <tr key={f.id} style={{ cursor: "pointer" }} onClick={() => setDetail(f)}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{
+                          width: 32, height: 32, background: "var(--bg-3)", borderRadius: 3,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)", flexShrink: 0,
+                        }}>{f.type}</span>
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 500 }}>{f.name}</div>
+                          {f.paperTitle && <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>{f.paperTitle.length > 50 ? f.paperTitle.slice(0, 50) + "…" : f.paperTitle}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-2)" }}>
+                      {f.presentationDate || "—"}
+                    </td>
+                    <td style={{ fontSize: 13 }}>{f.presenter || f.uploader || "—"}</td>
+                    <td style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{f.researchField || "—"}</td>
+                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{f.uploaded}</td>
+                    <td style={{ textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                      <button className="btn btn-text btn-sm" onClick={() => download(f)} title="Download"><Icon.download /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
+            /* ── Default table ── */
             <table className="table">
               <thead>
                 <tr>
                   <th style={{ width: "40%" }}>{lang === "en" ? "File" : "文件"}</th>
                   <th>{lang === "en" ? "Type" : "类型"}</th>
-                  <th>{t.resources.uploaded}</th>
+                  <th><SortBtn field="uploaded" label={t.resources.uploaded} /></th>
                   <th>{t.resources.uploader}</th>
                   <th style={{ textAlign: "right" }}>{t.resources.downloads}</th>
                   <th></th>
@@ -170,8 +271,7 @@ function ResourcesPage() {
                         <span style={{
                           width: 32, height: 32, background: "var(--bg-3)", borderRadius: 3,
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)",
-                          letterSpacing: "0.04em"
+                          fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.04em",
                         }}>{f.type}</span>
                         <div>
                           <div style={{ fontSize: 13.5, fontWeight: 500 }}>{f.name}</div>
@@ -184,9 +284,7 @@ function ResourcesPage() {
                     <td style={{ fontSize: 13 }}>{f.uploader}</td>
                     <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-3)" }}>{f.downloads}</td>
                     <td style={{ textAlign: "right" }}>
-                      <button className="btn btn-text btn-sm" onClick={() => download(f)} title={t.resources.download}>
-                        <Icon.download />
-                      </button>
+                      <button className="btn btn-text btn-sm" onClick={() => download(f)}><Icon.download /></button>
                     </td>
                   </tr>
                 ))}
@@ -195,7 +293,136 @@ function ResourcesPage() {
           )}
         </div>
       </div>
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} />}
+
+      {/* Upload modal */}
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} defaultCat={activeCat !== "All" ? activeCat : ""} />}
+
+      {/* Detail modal */}
+      {detail && !editing && (
+        <LitDetailModal
+          file={detail}
+          canEdit={user.role === "member" || user.role === "admin"}
+          onEdit={() => setEditing({ ...detail })}
+          onDownload={() => download(detail)}
+          onClose={() => setDetail(null)}
+          lang={lang}
+        />
+      )}
+
+      {/* Edit modal */}
+      {editing && (
+        <LitEditModal
+          file={editing}
+          onSave={saveDetail}
+          onClose={() => setEditing(null)}
+          lang={lang}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Literature PPT detail view modal ── */
+function LitDetailModal({ file, canEdit, onEdit, onDownload, onClose, lang }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              width: 36, height: 36, background: "var(--bg-3)", borderRadius: 3,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, color: "var(--ink-2)",
+            }}>{file.type}</span>
+            <div>
+              <h3 style={{ fontSize: 18 }}>{file.name}</h3>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>
+                {file.category}
+              </p>
+            </div>
+          </div>
+          <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
+        </div>
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {[
+            [lang === "en" ? "Paper title" : "文献标题", file.paperTitle],
+            [lang === "en" ? "Presenter" : "汇报人", file.presenter || file.uploader],
+            [lang === "en" ? "Presentation date" : "汇报日期", file.presentationDate],
+            [lang === "en" ? "Research field" : "研究领域", file.researchField],
+            [lang === "en" ? "File size" : "文件大小", file.size],
+            [lang === "en" ? "Uploaded by" : "上传者", file.uploader],
+            [lang === "en" ? "Upload date" : "上传日期", file.uploaded],
+          ].map(([label, val]) => val ? (
+            <div key={label} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 12, alignItems: "start" }}>
+              <span className="eyebrow" style={{ paddingTop: 2 }}>{label}</span>
+              <span style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.5 }}>{val}</span>
+            </div>
+          ) : null)}
+        </div>
+        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+          {canEdit && (
+            <button className="btn btn-ghost btn-sm" onClick={onEdit}>
+              <Icon.edit /> {lang === "en" ? "Edit details" : "编辑信息"}
+            </button>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={onDownload}>
+            <Icon.download /> {lang === "en" ? "Download" : "下载"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Literature PPT edit modal ── */
+function LitEditModal({ file, onSave, onClose, lang }) {
+  const [form, setForm] = useState({ ...file });
+  const [saving, setSaving] = useState(false);
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave(form);
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{lang === "en" ? "Edit presentation details" : "编辑汇报信息"}</h3>
+          <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
+        </div>
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label className="label">{lang === "en" ? "Session name" : "文件名"}</label>
+            <input className="input" value={form.name} onChange={e => set("name", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">{lang === "en" ? "Paper title" : "文献标题"}</label>
+            <textarea className="textarea" value={form.paperTitle || ""} onChange={e => set("paperTitle", e.target.value)} style={{ minHeight: 72 }} />
+          </div>
+          <div>
+            <label className="label">{lang === "en" ? "Presenter" : "汇报人"}</label>
+            <input className="input" value={form.presenter || ""} onChange={e => set("presenter", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">{lang === "en" ? "Presentation date" : "汇报日期"}</label>
+            <input className="input" type="date" value={form.presentationDate || ""} onChange={e => set("presentationDate", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">{lang === "en" ? "Research field" : "研究领域"}</label>
+            <input className="input" value={form.researchField || ""} onChange={e => set("researchField", e.target.value)}
+              placeholder={lang === "en" ? "e.g. Prostate cancer, RNA biology…" : "例如：前列腺癌、RNA 生物学…"} />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+            {saving ? "…" : (lang === "en" ? "Save" : "保存")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -695,7 +922,6 @@ function AdminResources() {
       file_url: fileUrl,
       is_public: false,
       description: "",
-      uploader: user.name,
     };
 
     let newId = "f" + Date.now();
@@ -758,15 +984,20 @@ function AdminResources() {
   );
 }
 
-function UploadModal({ onClose, onUpload }) {
+function UploadModal({ onClose, onUpload, defaultCat }) {
   const { lang } = useApp();
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Protocols");
+  const [category, setCategory] = useState(defaultCat || "Protocols");
   const [type, setType] = useState("PDF");
   const [drag, setDrag] = useState(false);
   const [rawFile, setRawFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [presenter, setPresenter] = useState("");
+  const [paperTitle, setPaperTitle] = useState("");
+  const [researchField, setResearchField] = useState("");
+  const [presentationDate, setPresentationDate] = useState("");
   const fileInputRef = React.useRef(null);
+  const isLitPPT = category === "Literature PPT";
 
   function handleFile(f) {
     if (!f) return;
@@ -778,7 +1009,7 @@ function UploadModal({ onClose, onUpload }) {
   async function doUpload() {
     if (!name) return;
     setUploading(true);
-    await onUpload({ name, category, type }, rawFile);
+    await onUpload({ name, category, type, presenter, paperTitle, researchField, presentationDate }, rawFile);
     setUploading(false);
   }
 
@@ -820,7 +1051,7 @@ function UploadModal({ onClose, onUpload }) {
             )}
           </div>
           <label className="label">{lang === "en" ? "Display name" : "显示名称"}</label>
-          <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. RNA-seq library prep v3.2" />
+          <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Journal Club_20260428" />
           <div style={{ height: 12 }} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
@@ -841,6 +1072,33 @@ function UploadModal({ onClose, onUpload }) {
               </select>
             </div>
           </div>
+
+          {/* Literature PPT extra fields */}
+          {isLitPPT && (
+            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "var(--bg-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
+              <div className="eyebrow" style={{ marginBottom: 4 }}>{lang === "en" ? "Literature PPT details" : "文献汇报信息"}</div>
+              <div>
+                <label className="label">{lang === "en" ? "Paper title" : "文献标题"}</label>
+                <textarea className="textarea" value={paperTitle} onChange={e => setPaperTitle(e.target.value)}
+                  style={{ minHeight: 64 }} placeholder={lang === "en" ? "Full title of the paper being presented" : "汇报文献的完整标题"} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label className="label">{lang === "en" ? "Presenter" : "汇报人"}</label>
+                  <input className="input" value={presenter} onChange={e => setPresenter(e.target.value)} placeholder={lang === "en" ? "Name" : "姓名"} />
+                </div>
+                <div>
+                  <label className="label">{lang === "en" ? "Presentation date" : "汇报日期"}</label>
+                  <input className="input" type="date" value={presentationDate} onChange={e => setPresentationDate(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="label">{lang === "en" ? "Research field" : "研究领域"}</label>
+                <input className="input" value={researchField} onChange={e => setResearchField(e.target.value)}
+                  placeholder={lang === "en" ? "e.g. Prostate cancer, RNA biology, CRISPR…" : "例如：前列腺癌、RNA 生物学、CRISPR…"} />
+              </div>
+            </div>
+          )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
