@@ -169,7 +169,7 @@ function ResearchPage() {
     <div className="page-fade container" style={{ padding: "64px 32px 0" }}>
       <div className="eyebrow" style={{ marginBottom: 16 }}>Research</div>
       <h1 style={{ maxWidth: "20ch", marginBottom: 24 }}>
-        {lang === "en" ? "Four directions, one question." : "四个方向，一个问题。"}
+        {lang === "en" ? "Main directions" : "主要研究方向"}
       </h1>
       <p className="lead" style={{ marginBottom: 64, maxWidth: "60ch" }}>
         {lang === "en"
