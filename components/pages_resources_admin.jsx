@@ -1190,7 +1190,8 @@ function UploadModal({ onClose, onUpload, defaultCat }) {
             <div>
               <label className="label">{lang === "en" ? "Category" : "分类"}</label>
               <select className="select" value={category} onChange={e => setCategory(e.target.value)}>
-                <option>Protocols</option>
+                <option>Internal Protocols</option>
+                <option>External Protocols</option>
                 <option>Literature PPT</option>
                 <option>Duty Roster</option>
                 <option>Lab Meeting</option>
