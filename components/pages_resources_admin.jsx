@@ -7,76 +7,57 @@ function isUUID(id) {
 // using a sentinel that won't match anything — the real fix is the insert path below
 function dbId(id) { return isUUID(id) ? id : null; }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Canonical category list — "Protocols" is the merged single entry
-const CAT_ORDER = ["Protocols", "Literature PPT", "Databases & Datasets", "Duty Roster", "Lab Meeting", "Reagent Inventory", "Reading Group"];
-
-// Files belonging to both old "Protocols" and "Reference Protocols" map to "Protocols"
-function normalizeCat(cat) {
-  if (cat === "Reference Protocols") return "Protocols";
-  return cat;
-}
-
-// Sort by name alphabetically; Chinese (CJK) last, then alphabetical within each group
-function sortAlpha(items, key = "name") {
-  return [...items].sort((a, b) => {
-    const na = String(a[key] || "");
-    const nb = String(b[key] || "");
-    const aCJK = /[\u4e00-\u9fff]/.test(na[0]);
-    const bCJK = /[\u4e00-\u9fff]/.test(nb[0]);
-    if (aCJK !== bCJK) return aCJK ? 1 : -1;
-    return na.localeCompare(nb, undefined, { sensitivity: "base" });
-  });
-}
-
-// ── ResourcesPage ─────────────────────────────────────────────────────────────
-
 function ResourcesPage() {
   const { lang, t, user, openLogin, addToast } = useApp();
   const D = window.LAB_DATA;
-
-  // Normalize existing seed/db data on first render
-  const normalizedResources = useMemo(() =>
-    (D.resources || []).map(f => ({ ...f, category: normalizeCat(f.category) })),
-  [D.resources]);
-
-  const [files, setFiles] = useState(normalizedResources);
+  const [files, setFiles] = useState([...D.resources]);
   const [activeCat, setActiveCat] = useState("All");
   const [showUpload, setShowUpload] = useState(false);
-  const [editingDb, setEditingDb] = useState(null);  // for Database entry edit
-  const [showAddDb, setShowAddDb] = useState(false); // for add Database entry
-  const [showAddDs, setShowAddDs] = useState(false); // for add Dataset entry
+  const [detail, setDetail] = useState(null);       // file being viewed
+  const [editing, setEditing] = useState(null);     // file being edited
+  const [sortBy, setSortBy] = useState("uploaded"); // "uploaded" | "date"
+  const [sortDir, setSortDir] = useState("desc");
 
-  // Databases & Datasets entries are stored in window.LAB_DATA.databases
-  if (!D.databases) D.databases = [];
-  const [databases, setDatabases] = useState([...D.databases]);
-
-  // Sidebar: canonical order, only show cats that have items (or are known cats for members)
-  const rawCats = useMemo(() => Array.from(new Set(files.map(f => f.category))), [files]);
-  const visibleCats = user.role === "guest" ? ["Lab Meeting"] : CAT_ORDER.filter(c => rawCats.includes(c) || c === "Databases & Datasets");
+  const allCats = useMemo(() => Array.from(new Set(files.map(f => f.category))), [files]);
+  const visibleCats = user.role === "guest" ? ["Lab Meeting"] : allCats;
   const cats = ["All", ...visibleCats];
+  const isLitPPT = activeCat === "Literature PPT";
 
-  // Count helper
-  function catCount(c) {
-    if (c === "All") return files.filter(f => visibleCats.includes(f.category)).length + (visibleCats.includes("Databases & Datasets") ? databases.length : 0);
-    if (c === "Databases & Datasets") return databases.length + files.filter(f => f.category === "Databases & Datasets").length;
-    return files.filter(f => f.category === c).length;
+  const visible = useMemo(() => {
+    let list = files.filter(f =>
+      visibleCats.includes(f.category) && (activeCat === "All" || f.category === activeCat)
+    );
+    // Sort
+    list = [...list].sort((a, b) => {
+      let av, bv;
+      if (sortBy === "date") {
+        av = a.presentationDate || a.uploaded || "";
+        bv = b.presentationDate || b.uploaded || "";
+      } else {
+        av = a.uploaded || "";
+        bv = b.uploaded || "";
+      }
+      return sortDir === "desc" ? bv.localeCompare(av) : av.localeCompare(bv);
+    });
+    return list;
+  }, [files, activeCat, visibleCats, sortBy, sortDir]);
+
+  function toggleSort(field) {
+    if (sortBy === field) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortBy(field); setSortDir("desc"); }
   }
 
   function download(f) {
     const newCount = (f.downloads || 0) + 1;
     const updated = files.map(x => x.id === f.id ? { ...x, downloads: newCount } : x);
-    setFiles(updated);
-    D.resources = updated;
+    setFiles(updated); D.resources = updated;
     if (isUUID(f.id)) window.SUPABASE.update("resources", f.id, { downloads: newCount }).catch(() => {});
     if (f.url) window.open(f.url, "_blank");
     else addToast(`${lang === "en" ? "Downloaded" : "已下载"} · ${f.name}`);
   }
 
   async function handleUpload(fileData, rawFile) {
-    let fileUrl = "";
-    let size = "";
+    let fileUrl = "", size = "";
     if (rawFile) {
       size = rawFile.size < 1024 * 1024
         ? Math.round(rawFile.size / 1024) + " KB"
@@ -93,7 +74,11 @@ function ResourcesPage() {
       file_type: fileData.type, file_url: fileUrl,
       is_public: false, description: "",
       uploader: user.name,
-      subcategory: fileData.subcategory || "",
+      presenter: fileData.presenter || "",
+      paper_title: fileData.paperTitle || "",
+      research_field: fileData.researchField || "",
+      presentation_date: fileData.presentationDate || null,
+      source: fileData.source || "",
     };
     let newId = "f" + Date.now();
     try {
@@ -102,274 +87,54 @@ function ResourcesPage() {
     } catch (e) {}
     const newFile = {
       id: newId, name: fileData.name, category: fileData.category,
-      subcategory: fileData.subcategory || "",
       type: fileData.type, size, url: fileUrl,
       uploader: user.name, downloads: 0,
       uploaded: new Date().toISOString().slice(0, 10),
+      presenter: fileData.presenter || "",
+      paperTitle: fileData.paperTitle || "",
+      researchField: fileData.researchField || "",
+      presentationDate: fileData.presentationDate || "",
+      source: fileData.source || "",
     };
     D.resources.unshift(newFile);
-    setFiles([normalizeCat, ...D.resources].map(f => ({ ...f, category: normalizeCat(f.category) })));
-    setFiles(D.resources.map(f => ({ ...f, category: normalizeCat(f.category) })));
+    setFiles([...D.resources]);
     addToast((lang === "en" ? "Uploaded · " : "已上传 · ") + fileData.name);
     setShowUpload(false);
   }
 
-  // Save a Database entry
-  async function saveDbEntry(entry) {
-    const isNew = !entry.id;
-    const payload = {
-      title: entry.name, category: "Databases & Datasets",
-      subcategory: "Database",
-      file_type: "LINK", file_url: entry.url || "",
-      description: entry.description || "",
-      is_public: false, uploader: user.name,
+  // Save edited detail (members & admin)
+  async function saveDetail(updated) {
+    const dbPayload = {
+      title: updated.name,
+      presenter: updated.presenter || "",
+      paper_title: updated.paperTitle || "",
+      research_field: updated.researchField || "",
+      presentation_date: updated.presentationDate || null,
+      source: updated.source || "",
     };
-    let savedEntry = { ...entry };
-    try {
-      if (isNew) {
-        const result = await window.SUPABASE.insert("resources", payload);
-        const newId = Array.isArray(result) && result[0] ? result[0].id : ("db" + Date.now());
-        savedEntry = { ...entry, id: newId };
-        D.databases.push(savedEntry);
-      } else {
-        if (isUUID(entry.id)) await window.SUPABASE.update("resources", entry.id, payload).catch(() => {});
-        const idx = D.databases.findIndex(x => x.id === entry.id);
-        if (idx >= 0) D.databases[idx] = savedEntry;
-      }
-    } catch (e) {
-      addToast(lang === "en" ? "⚠ Sync failed — saved locally" : "⚠ 同步失败，已本地保存");
-      if (isNew) D.databases.push(savedEntry);
+    if (isUUID(updated.id)) {
+      try { await window.SUPABASE.update("resources", updated.id, dbPayload); } catch (e) {}
     }
-    setDatabases([...D.databases]);
-    setEditingDb(null);
-    setShowAddDb(false);
+    const newFiles = files.map(f => f.id === updated.id ? { ...f, ...updated } : f);
+    D.resources = newFiles;
+    setFiles(newFiles);
+    setEditing(null);
+    setDetail(updated);
     addToast(lang === "en" ? "Saved" : "已保存");
   }
 
-  async function removeDbEntry(id) {
-    if (!window.confirm(lang === "en" ? "Delete this entry?" : "确认删除？")) return;
-    D.databases = D.databases.filter(x => x.id !== id);
-    setDatabases([...D.databases]);
-    if (isUUID(id)) window.SUPABASE.remove("resources", id).catch(() => {});
-    addToast(lang === "en" ? "Deleted" : "已删除");
-  }
-
-  // ── Render helpers ──────────────────────────────────────────────────────────
-
-  function renderProtocolsView() {
-    const inhouse = files.filter(f => f.category === "Protocols" && f.subcategory !== "External");
-    const external = files.filter(f => f.category === "Protocols" && f.subcategory === "External");
-    const sortedInhouse = sortAlpha(inhouse);
-    const sortedExternal = sortAlpha(external);
+  function SortBtn({ field, label }) {
+    const active = sortBy === field;
     return (
-      <div>
-        {/* In-house protocols */}
-        <div style={{ marginBottom: 40 }}>
-          <div style={{ marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--line)" }}>
-            <h4 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>
-              {lang === "en" ? "In-house protocols" : "组内实验方案"}
-            </h4>
-          </div>
-          {sortedInhouse.length === 0
-            ? <p style={{ fontSize: 13, color: "var(--ink-3)" }}>{lang === "en" ? "None yet." : "暂无。"}</p>
-            : renderFilesTable(sortedInhouse)}
-        </div>
-        {/* External reference protocols */}
-        <div>
-          <div style={{ marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--line)" }}>
-            <h4 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>
-              {lang === "en" ? "External reference protocols" : "外部参考方案"}
-            </h4>
-          </div>
-          {sortedExternal.length === 0
-            ? <p style={{ fontSize: 13, color: "var(--ink-3)" }}>{lang === "en" ? "None yet." : "暂无。"}</p>
-            : renderFilesTable(sortedExternal)}
-        </div>
-      </div>
+      <span onClick={() => toggleSort(field)} style={{
+        cursor: "pointer", userSelect: "none",
+        color: active ? "var(--ink)" : "var(--ink-3)",
+        display: "inline-flex", alignItems: "center", gap: 3,
+      }}>
+        {label}
+        <span style={{ fontSize: 10 }}>{active ? (sortDir === "desc" ? "↓" : "↑") : "↕"}</span>
+      </span>
     );
-  }
-
-  function renderDatabasesView() {
-    const dbEntries = sortAlpha(databases, "name");
-    const dsFiles = sortAlpha(files.filter(f => f.category === "Databases & Datasets" && f.subcategory !== "Database"), "name");
-    return (
-      <div>
-        {/* Database sub-section */}
-        <div style={{ marginBottom: 40 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--line)" }}>
-            <h4 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>
-              {lang === "en" ? "Databases" : "数据库"}
-            </h4>
-            {(user.role === "member" || user.role === "admin") && (
-              <button className="btn btn-text btn-sm" onClick={() => setShowAddDb(true)}>
-                <Icon.plus /> {lang === "en" ? "Add database" : "添加数据库"}
-              </button>
-            )}
-          </div>
-          {dbEntries.length === 0
-            ? <p style={{ fontSize: 13, color: "var(--ink-3)" }}>{lang === "en" ? "No databases added yet." : "暂无数据库。"}</p>
-            : (
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>{lang === "en" ? "Name" : "名称"}</th>
-                    <th>{lang === "en" ? "Description / Usage" : "用途说明"}</th>
-                    <th>{lang === "en" ? "Link" : "链接"}</th>
-                    {(user.role === "member" || user.role === "admin") && <th></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {dbEntries.map(db => (
-                    <tr key={db.id}>
-                      <td style={{ fontWeight: 500, fontSize: 13.5 }}>{db.name}</td>
-                      <td style={{ fontSize: 13, color: "var(--ink-2)", maxWidth: 280 }}>{db.description || "—"}</td>
-                      <td>
-                        {db.url
-                          ? <a href={db.url} target="_blank" rel="noopener noreferrer"
-                              style={{ fontSize: 12.5, color: "var(--accent)", display: "flex", alignItems: "center", gap: 4 }}>
-                              {lang === "en" ? "Open" : "访问"} <Icon.external />
-                            </a>
-                          : <span style={{ color: "var(--ink-3)", fontSize: 12.5 }}>—</span>}
-                      </td>
-                      {(user.role === "member" || user.role === "admin") && (
-                        <td style={{ textAlign: "right" }}>
-                          <button className="btn btn-text btn-sm" onClick={() => setEditingDb(db)}><Icon.edit /></button>
-                          <button className="btn btn-text btn-sm" onClick={() => removeDbEntry(db.id)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-        </div>
-        {/* Datasets sub-section */}
-        <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid var(--line)" }}>
-            <h4 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>
-              {lang === "en" ? "Datasets" : "数据集"}
-            </h4>
-            {(user.role === "member" || user.role === "admin") && (
-              <button className="btn btn-text btn-sm" onClick={() => setShowAddDs(true)}>
-                <Icon.plus /> {lang === "en" ? "Add dataset" : "添加数据集"}
-              </button>
-            )}
-          </div>
-          {dsFiles.length === 0
-            ? <p style={{ fontSize: 13, color: "var(--ink-3)" }}>{lang === "en" ? "No datasets yet." : "暂无数据集。"}</p>
-            : renderFilesTable(dsFiles)}
-        </div>
-      </div>
-    );
-  }
-
-  function renderFilesTable(items) {
-    return (
-      <table className="table">
-        <thead>
-          <tr>
-            <th style={{ width: "40%" }}>{lang === "en" ? "File" : "文件"}</th>
-            <th>{lang === "en" ? "Type" : "类型"}</th>
-            <th>{t.resources.uploaded}</th>
-            <th>{t.resources.uploader}</th>
-            <th style={{ textAlign: "right" }}>{t.resources.downloads}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map(f => (
-            <tr key={f.id}>
-              <td>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{
-                    width: 32, height: 32, background: "var(--bg-3)", borderRadius: 3,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)",
-                    letterSpacing: "0.04em",
-                  }}>{f.type}</span>
-                  <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 500 }}>{f.name}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{f.category} · {f.size}</div>
-                  </div>
-                </div>
-              </td>
-              <td><span className="chip">{f.type}</span></td>
-              <td style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{f.uploaded}</td>
-              <td style={{ fontSize: 13 }}>{f.uploader}</td>
-              <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-3)" }}>{f.downloads}</td>
-              <td style={{ textAlign: "right" }}>
-                <button className="btn btn-text btn-sm" onClick={() => download(f)} title={t.resources.download}>
-                  <Icon.download />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
-  function renderLitPPTView(items) {
-    return renderFilesTable(items);
-  }
-
-  function renderDefaultView(items) {
-    const sorted = sortAlpha(items);
-    return renderFilesTable(sorted);
-  }
-
-  function renderContent() {
-    if (activeCat === "Protocols") return renderProtocolsView();
-    if (activeCat === "Databases & Datasets") return renderDatabasesView();
-
-    const items = files.filter(f => visibleCats.includes(f.category) && (activeCat === "All" || f.category === activeCat));
-
-    if (activeCat === "All") {
-      // Show all items; group by category for readability
-      const grouped = {};
-      items.forEach(f => { (grouped[f.category] = grouped[f.category] || []).push(f); });
-      const keys = CAT_ORDER.filter(c => grouped[c] && c !== "Protocols");
-      // Also include Protocols
-      const protocolItems = files.filter(f => f.category === "Protocols");
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 48 }}>
-          {protocolItems.length > 0 && (
-            <section>
-              <div style={{ marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid var(--line)" }}>
-                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Protocols</span>
-              </div>
-              {renderFilesTable(sortAlpha(protocolItems))}
-            </section>
-          )}
-          {databases.length > 0 && (
-            <section>
-              <div style={{ marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid var(--line)" }}>
-                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Databases &amp; Datasets</span>
-              </div>
-              {renderDatabasesView()}
-            </section>
-          )}
-          {keys.map(cat => (
-            <section key={cat}>
-              <div style={{ marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid var(--line)" }}>
-                <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{cat}</span>
-              </div>
-              {cat === "Literature PPT" ? renderLitPPTView(grouped[cat]) : renderDefaultView(grouped[cat])}
-            </section>
-          ))}
-        </div>
-      );
-    }
-
-    if (activeCat === "Literature PPT") return renderLitPPTView(items);
-
-    if (items.length === 0) return (
-      <div style={{ padding: 64, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
-        {lang === "en" ? "No files in this category." : "暂无文件。"}
-      </div>
-    );
-
-    return renderDefaultView(items);
   }
 
   return (
@@ -379,7 +144,7 @@ function ResourcesPage() {
           <div className="eyebrow" style={{ marginBottom: 16 }}>Resources · 共享资源</div>
           <h1 style={{ marginBottom: 0 }}>{lang === "en" ? "Shared lab resources." : "组内共享资源。"}</h1>
         </div>
-        {(user.role === "member" || user.role === "admin") && activeCat !== "Databases & Datasets" && (
+        {(user.role === "member" || user.role === "admin") && (
           <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => setShowUpload(true)}>
             <Icon.upload /> {lang === "en" ? "Upload file" : "上传文件"}
           </button>
@@ -425,7 +190,9 @@ function ResourcesPage() {
               }}>
                 <span>{c}</span>
                 <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)" }}>
-                  {catCount(c)}
+                  {c === "All"
+                    ? files.filter(f => visibleCats.includes(f.category)).length
+                    : files.filter(f => f.category === c).length}
                 </span>
               </button>
             ))}
@@ -434,81 +201,362 @@ function ResourcesPage() {
             <div style={{ marginTop: 32, padding: 16, background: "var(--bg-2)", borderRadius: 4, border: "1px solid var(--line)" }}>
               <div className="eyebrow" style={{ marginBottom: 6 }}>Logged in as</div>
               <p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{user.name}</p>
-              <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: "2px 0 0", fontFamily: "var(--mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                {user.role}
-              </p>
+              <p style={{ fontSize: 11.5, color: "var(--ink-3)", margin: "2px 0 0", fontFamily: "var(--mono)", letterSpacing: "0.04em", textTransform: "uppercase" }}>{user.role}</p>
             </div>
           )}
         </aside>
 
-        <div>{renderContent()}</div>
+        <div>
+          {isLitPPT ? (
+            visible.length === 0 ? (
+              <div style={{ padding: 64, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
+                {lang === "en" ? "No files in this category." : "暂无文件。"}
+              </div>
+            ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{ width: "28%" }}>{lang === "en" ? "Session name" : "文件名"}</th>
+                  <th><SortBtn field="date" label={lang === "en" ? "Presentation date" : "汇报日期"} /></th>
+                  <th>{lang === "en" ? "Presenter" : "汇报人"}</th>
+                  <th>{lang === "en" ? "Research field" : "研究领域"}</th>
+                  <th style={{ textAlign: "right" }}><SortBtn field="uploaded" label={lang === "en" ? "Uploaded" : "上传"} /></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map(f => (
+                  <tr key={f.id} style={{ cursor: "pointer" }} onClick={() => setDetail(f)}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{
+                          width: 32, height: 32, background: "var(--bg-3)", borderRadius: 3,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)", flexShrink: 0,
+                        }}>{f.type}</span>
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 500 }}>{f.name}</div>
+                          {f.paperTitle && <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>{f.paperTitle.length > 50 ? f.paperTitle.slice(0, 50) + "…" : f.paperTitle}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-2)" }}>{f.presentationDate || "—"}</td>
+                    <td style={{ fontSize: 13 }}>{f.presenter || f.uploader || "—"}</td>
+                    <td style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{f.researchField || "—"}</td>
+                    <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{f.uploaded}</td>
+                    <td style={{ textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                      <button className="btn btn-text btn-sm" onClick={() => download(f)}><Icon.download /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            )
+          ) : (activeCat === "All" || activeCat === "Protocols" || activeCat === "Reference Protocols") ? (
+            <ProtocolsDualView
+              files={files} visibleCats={visibleCats} activeCat={activeCat}
+              onDetail={setDetail} onDownload={download}
+              SortBtn={SortBtn} lang={lang}
+            />
+          ) : visible.length === 0 ? (
+            <div style={{ padding: 64, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
+              {lang === "en" ? "No files in this category." : "暂无文件。"}
+            </div>
+          ) : (
+            <DefaultFileTable visible={visible} onDownload={download} t={t} SortBtn={SortBtn} lang={lang} />
+          )}
+        </div>
       </div>
 
-      {showUpload && (
-        <UploadModal
-          onClose={() => setShowUpload(false)}
-          onUpload={handleUpload}
-          defaultCat={activeCat !== "All" && activeCat !== "Databases & Datasets" ? activeCat : "Protocols"}
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={handleUpload} defaultCat={activeCat !== "All" ? activeCat : ""} />}
+
+      {detail && !editing && (
+        <ResourceDetailModal
+          file={detail}
+          canEdit={user.role === "member" || user.role === "admin"}
+          onEdit={() => setEditing({ ...detail })}
+          onDownload={() => download(detail)}
+          onClose={() => setDetail(null)}
+          lang={lang}
         />
       )}
 
-      {/* Add / Edit Database entry modal */}
-      {(showAddDb || editingDb) && (
-        <DbEntryModal
-          entry={editingDb || { name: "", url: "", description: "" }}
-          onSave={saveDbEntry}
-          onClose={() => { setShowAddDb(false); setEditingDb(null); }}
-        />
-      )}
-
-      {/* Add Dataset file modal */}
-      {showAddDs && (
-        <UploadModal
-          onClose={() => setShowAddDs(false)}
-          onUpload={(fileData, rawFile) => handleUpload({ ...fileData, category: "Databases & Datasets", subcategory: "Dataset" }, rawFile)}
-          defaultCat="Databases & Datasets"
-          forcedCat="Databases & Datasets"
+      {editing && (
+        <ResourceEditModal
+          file={editing}
+          onSave={saveDetail}
+          onClose={() => setEditing(null)}
+          lang={lang}
         />
       )}
     </div>
   );
 }
 
-// ── DbEntryModal — add/edit a Database link entry ────────────────────────────
+/* ── Protocols dual-module view ── */
+function ProtocolsDualView({ files, visibleCats, activeCat, onDetail, onDownload, SortBtn, lang }) {
+  const allProto = files.filter(f => visibleCats.includes(f.category) &&
+    (f.category === "Protocols" || f.category === "Reference Protocols"));
+  const labProtos = allProto.filter(f => f.category === "Protocols");
+  const refProtos = allProto.filter(f => f.category === "Reference Protocols");
+  const showLab = activeCat !== "Reference Protocols";
+  const showRef = activeCat !== "Protocols";
 
-function DbEntryModal({ entry, onSave, onClose }) {
-  const { lang } = useApp();
-  const [e, setE] = useState({ ...entry });
+  function ProtoTable({ items, emptyMsg }) {
+    if (items.length === 0) return (
+      <div style={{ padding: "20px 0", color: "var(--ink-3)", fontSize: 13.5 }}>{emptyMsg}</div>
+    );
+    return (
+      <table className="table">
+        <thead>
+          <tr>
+            <th style={{ width: "42%" }}>{lang === "en" ? "Protocol name" : "方案名称"}</th>
+            <th>{lang === "en" ? "Type" : "类型"}</th>
+            <th>{lang === "en" ? "By" : "上传者"}</th>
+            <th>{lang === "en" ? "Updated" : "更新时间"}</th>
+            <th style={{ textAlign: "right" }}>{lang === "en" ? "Downloads" : "下载"}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(f => (
+            <tr key={f.id} style={{ cursor: "pointer" }} onClick={() => onDetail(f)}>
+              <td>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    width: 32, height: 32, background: "var(--bg-3)", borderRadius: 3,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)", flexShrink: 0,
+                  }}>{f.type}</span>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 500 }}>{f.name}</div>
+                    {f.source && (
+                      <div style={{ fontSize: 11.5, color: "var(--accent-2)", marginTop: 2 }}>
+                        <span style={{ fontFamily: "var(--mono)", fontSize: 10 }}>SRC </span>{f.source}
+                      </div>
+                    )}
+                    {f.size && <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--mono)", marginTop: 1 }}>{f.size}</div>}
+                  </div>
+                </div>
+              </td>
+              <td><span className="chip">{f.type}</span></td>
+              <td style={{ fontSize: 13 }}>{f.uploader || "—"}</td>
+              <td style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{f.uploaded}</td>
+              <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-3)" }}>{f.downloads}</td>
+              <td style={{ textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                <button className="btn btn-text btn-sm" onClick={() => onDownload(f)}><Icon.download /></button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 56 }}>
+      {showLab && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--ink)" }}>
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 4 }}>{lang === "en" ? "01 / Lab Protocols" : "01 / 组内原创方案"}</div>
+              <h3 style={{ fontSize: 20, margin: 0 }}>{lang === "en" ? "In-house protocols" : "实验室自主整理方案"}</h3>
+            </div>
+            <span className="chip accent" style={{ marginLeft: "auto" }}>{labProtos.length} {lang === "en" ? "files" : "个"}</span>
+          </div>
+          <p style={{ fontSize: 13.5, color: "var(--ink-2)", marginBottom: 16 }}>
+            {lang === "en"
+              ? "Protocols developed, optimized, and maintained by Yuan Lab members — reflecting our actual experimental conditions."
+              : "由组内成员自主开发、优化和维护的实验方案，反映本课题组的实际实验条件。"}
+          </p>
+          <ProtoTable items={labProtos} emptyMsg={lang === "en" ? "No lab protocols yet. Upload one to get started." : "暂无组内原创方案，点击右上角上传。"} />
+        </div>
+      )}
+      {showRef && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--ink)" }}>
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 4 }}>{lang === "en" ? "02 / Reference Protocols" : "02 / 参考方案"}</div>
+              <h3 style={{ fontSize: 20, margin: 0 }}>{lang === "en" ? "External reference protocols" : "外部来源参考方案"}</h3>
+            </div>
+            <span className="chip" style={{ marginLeft: "auto" }}>{refProtos.length} {lang === "en" ? "files" : "个"}</span>
+          </div>
+          <p style={{ fontSize: 13.5, color: "var(--ink-2)", marginBottom: 16 }}>
+            {lang === "en"
+              ? "Established protocols from reagent manufacturers (e.g. CST, Abcam), published papers, or other labs. Source noted per file."
+              : "来自试剂商（如 CST、Abcam）、已发表文献或其他课题组的成熟方案，每个文件均标注来源。"}
+          </p>
+          <ProtoTable items={refProtos} emptyMsg={lang === "en" ? "No reference protocols yet." : "暂无外部参考方案。"} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Default file table ── */
+function DefaultFileTable({ visible, onDownload, t, SortBtn, lang }) {
+  return (
+    <table className="table">
+      <thead>
+        <tr>
+          <th style={{ width: "40%" }}>{lang === "en" ? "File" : "文件"}</th>
+          <th>{lang === "en" ? "Type" : "类型"}</th>
+          <th><SortBtn field="uploaded" label={t.resources.uploaded} /></th>
+          <th>{t.resources.uploader}</th>
+          <th style={{ textAlign: "right" }}>{t.resources.downloads}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {visible.map(f => (
+          <tr key={f.id}>
+            <td>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{
+                  width: 32, height: 32, background: "var(--bg-3)", borderRadius: 3,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "var(--mono)", fontSize: 9, fontWeight: 600, color: "var(--ink-2)", letterSpacing: "0.04em",
+                }}>{f.type}</span>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>{f.name}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{f.category} · {f.size}</div>
+                </div>
+              </div>
+            </td>
+            <td><span className="chip">{f.type}</span></td>
+            <td style={{ fontSize: 12.5, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{f.uploaded}</td>
+            <td style={{ fontSize: 13 }}>{f.uploader}</td>
+            <td style={{ textAlign: "right", fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-3)" }}>{f.downloads}</td>
+            <td style={{ textAlign: "right" }}>
+              <button className="btn btn-text btn-sm" onClick={() => onDownload(f)}><Icon.download /></button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/* ── Unified resource detail modal ── */
+function ResourceDetailModal({ file, canEdit, onEdit, onDownload, onClose, lang }) {
+  const isLit = file.category === "Literature PPT";
+  const isRef = file.category === "Reference Protocols";
+  const rows = isLit ? [
+    [lang === "en" ? "Paper title" : "文献标题", file.paperTitle],
+    [lang === "en" ? "Presenter" : "汇报人", file.presenter || file.uploader],
+    [lang === "en" ? "Presentation date" : "汇报日期", file.presentationDate],
+    [lang === "en" ? "Research field" : "研究领域", file.researchField],
+    [lang === "en" ? "File size" : "文件大小", file.size],
+    [lang === "en" ? "Uploaded by" : "上传者", file.uploader],
+    [lang === "en" ? "Upload date" : "上传日期", file.uploaded],
+  ] : [
+    [lang === "en" ? "Category" : "分类", file.category],
+    ...(isRef ? [[lang === "en" ? "Source" : "来源", file.source]] : []),
+    [lang === "en" ? "File size" : "文件大小", file.size],
+    [lang === "en" ? "Uploaded by" : "上传者", file.uploader],
+    [lang === "en" ? "Upload date" : "上传日期", file.uploaded],
+  ];
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={ev => ev.stopPropagation()} style={{ maxWidth: 520 }}>
+      <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{entry.id ? (lang === "en" ? "Edit database entry" : "编辑数据库条目") : (lang === "en" ? "Add database" : "添加数据库")}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              width: 36, height: 36, background: "var(--bg-3)", borderRadius: 3,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontFamily: "var(--mono)", fontSize: 10, fontWeight: 600, color: "var(--ink-2)",
+            }}>{file.type}</span>
+            <div>
+              <h3 style={{ fontSize: 18 }}>{file.name}</h3>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{file.category}</p>
+            </div>
+          </div>
           <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
         </div>
-        <div className="modal-body">
-          <label className="label">{lang === "en" ? "Database name" : "数据库名称"}</label>
-          <input className="input" value={e.name} onChange={ev => setE({ ...e, name: ev.target.value })}
-            placeholder={lang === "en" ? "e.g. NCBI GEO, TCGA, GTEx" : "例如：NCBI GEO、TCGA、GTEx"} />
-          <div style={{ height: 12 }} />
-          <label className="label">{lang === "en" ? "URL (clickable link)" : "链接地址"}</label>
-          <input className="input" type="url" value={e.url || ""} onChange={ev => setE({ ...e, url: ev.target.value })}
-            placeholder="https://" />
-          <div style={{ height: 12 }} />
-          <label className="label">{lang === "en" ? "Description / Usage" : "用途说明"}</label>
-          <textarea className="textarea" style={{ minHeight: 72 }} value={e.description || ""} onChange={ev => setE({ ...e, description: ev.target.value })}
-            placeholder={lang === "en" ? "Brief description of what this database is used for in the lab." : "简述该数据库在课题组的使用场景。"} />
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {rows.map(([label, val]) => val ? (
+            <div key={label} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 12, alignItems: "start" }}>
+              <span className="eyebrow" style={{ paddingTop: 2 }}>{label}</span>
+              <span style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.55 }}>{val}</span>
+            </div>
+          ) : null)}
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
-          <button className="btn btn-primary btn-sm" disabled={!e.name} onClick={() => onSave(e)}>
-            <Icon.check /> {lang === "en" ? "Save" : "保存"}
+        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+          {canEdit && (
+            <button className="btn btn-ghost btn-sm" onClick={onEdit}>
+              <Icon.edit /> {lang === "en" ? "Edit details" : "编辑信息"}
+            </button>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={onDownload}>
+            <Icon.download /> {lang === "en" ? "Download" : "下载"}
           </button>
         </div>
       </div>
     </div>
   );
 }
+
+/* ── Unified resource edit modal ── */
+function ResourceEditModal({ file, onSave, onClose, lang }) {
+  const [form, setForm] = useState({ ...file });
+  const [saving, setSaving] = useState(false);
+  const isLit = form.category === "Literature PPT";
+  const isRef = form.category === "Reference Protocols";
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  async function handleSave() { setSaving(true); await onSave(form); setSaving(false); }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{lang === "en" ? "Edit file details" : "编辑文件信息"}</h3>
+          <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
+        </div>
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label className="label">{lang === "en" ? "Display name" : "显示名称"}</label>
+            <input className="input" value={form.name} onChange={e => set("name", e.target.value)} />
+          </div>
+          {isLit && (<>
+            <div>
+              <label className="label">{lang === "en" ? "Paper title" : "文献标题"}</label>
+              <textarea className="textarea" value={form.paperTitle || ""} onChange={e => set("paperTitle", e.target.value)} style={{ minHeight: 72 }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label className="label">{lang === "en" ? "Presenter" : "汇报人"}</label>
+                <input className="input" value={form.presenter || ""} onChange={e => set("presenter", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">{lang === "en" ? "Presentation date" : "汇报日期"}</label>
+                <input className="input" type="date" value={form.presentationDate || ""} onChange={e => set("presentationDate", e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="label">{lang === "en" ? "Research field" : "研究领域"}</label>
+              <input className="input" value={form.researchField || ""} onChange={e => set("researchField", e.target.value)}
+                placeholder={lang === "en" ? "e.g. Prostate cancer, RNA biology…" : "例如：前列腺癌、RNA 生物学…"} />
+            </div>
+          </>)}
+          {isRef && (
+            <div>
+              <label className="label">{lang === "en" ? "Source" : "来源"}</label>
+              <input className="input" value={form.source || ""} onChange={e => set("source", e.target.value)}
+                placeholder={lang === "en" ? "e.g. CST #9102, Abcam, PMID:12345678…" : "例如：CST #9102、Abcam、PMID:12345678…"} />
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+            {saving ? "…" : (lang === "en" ? "Save" : "保存")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // ==================== Admin Console ====================
 
@@ -1005,8 +1053,6 @@ function AdminResources() {
       file_url: fileUrl,
       is_public: false,
       description: "",
-      uploader: user.name,
-      subcategory: fileData.subcategory || "",
     };
 
     let newId = "f" + Date.now();
@@ -1022,7 +1068,6 @@ function AdminResources() {
       id: newId,
       name: fileData.name,
       category: fileData.category,
-      subcategory: fileData.subcategory || "",
       type: fileData.type,
       size,
       url: fileUrl,
@@ -1065,21 +1110,27 @@ function AdminResources() {
           ))}
         </tbody>
       </table>
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={upload} defaultCat="Protocols" />}
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUpload={upload} />}
     </div>
   );
 }
 
-function UploadModal({ onClose, onUpload, defaultCat, forcedCat }) {
+function UploadModal({ onClose, onUpload, defaultCat }) {
   const { lang } = useApp();
   const [name, setName] = useState("");
   const [category, setCategory] = useState(defaultCat || "Protocols");
-  const [subcategory, setSubcategory] = useState("In-house");
   const [type, setType] = useState("PDF");
   const [drag, setDrag] = useState(false);
   const [rawFile, setRawFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [presenter, setPresenter] = useState("");
+  const [paperTitle, setPaperTitle] = useState("");
+  const [researchField, setResearchField] = useState("");
+  const [presentationDate, setPresentationDate] = useState("");
+  const [source, setSource] = useState("");
   const fileInputRef = React.useRef(null);
+  const isLitPPT = category === "Literature PPT";
+  const isRef = category === "Reference Protocols";
 
   function handleFile(f) {
     if (!f) return;
@@ -1091,7 +1142,7 @@ function UploadModal({ onClose, onUpload, defaultCat, forcedCat }) {
   async function doUpload() {
     if (!name) return;
     setUploading(true);
-    await onUpload({ name, category: forcedCat || category, type, subcategory }, rawFile);
+    await onUpload({ name, category, type, presenter, paperTitle, researchField, presentationDate, source }, rawFile);
     setUploading(false);
   }
 
@@ -1133,15 +1184,14 @@ function UploadModal({ onClose, onUpload, defaultCat, forcedCat }) {
             )}
           </div>
           <label className="label">{lang === "en" ? "Display name" : "显示名称"}</label>
-          <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. RNA-seq library prep v3.2" />
+          <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Journal Club_20260428" />
           <div style={{ height: 12 }} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label className="label">{lang === "en" ? "Category" : "分类"}</label>
-              <select className="select" value={forcedCat || category} onChange={e => setCategory(e.target.value)} disabled={!!forcedCat}>
+              <select className="select" value={category} onChange={e => setCategory(e.target.value)}>
                 <option>Protocols</option>
                 <option>Literature PPT</option>
-                <option>Databases &amp; Datasets</option>
                 <option>Duty Roster</option>
                 <option>Lab Meeting</option>
                 <option>Reagent Inventory</option>
@@ -1155,13 +1205,41 @@ function UploadModal({ onClose, onUpload, defaultCat, forcedCat }) {
               </select>
             </div>
           </div>
-          {(forcedCat || category) === "Protocols" && (
-            <div style={{ marginTop: 12 }}>
-              <label className="label">{lang === "en" ? "Sub-category" : "子分类"}</label>
-              <select className="select" value={subcategory} onChange={e => setSubcategory(e.target.value)}>
-                <option value="In-house">{lang === "en" ? "In-house protocol" : "组内实验方案"}</option>
-                <option value="External">{lang === "en" ? "External reference" : "外部参考方案"}</option>
-              </select>
+
+          {/* Reference Protocols source field */}
+          {isRef && (
+            <div style={{ marginTop: 16, padding: 16, background: "var(--bg-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
+              <div className="eyebrow" style={{ marginBottom: 8 }}>{lang === "en" ? "Reference details" : "参考方案信息"}</div>
+              <label className="label">{lang === "en" ? "Source" : "来源"}</label>
+              <input className="input" value={source} onChange={e => setSource(e.target.value)}
+                placeholder={lang === "en" ? "e.g. CST #9102, Abcam ab12345, PMID:12345678, Nature Protocols 2023…" : "例如：CST #9102、Abcam ab12345、PMID:12345678…"} />
+            </div>
+          )}
+
+          {/* Literature PPT extra fields */}
+          {isLitPPT && (
+            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "var(--bg-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
+              <div className="eyebrow" style={{ marginBottom: 4 }}>{lang === "en" ? "Literature PPT details" : "文献汇报信息"}</div>
+              <div>
+                <label className="label">{lang === "en" ? "Paper title" : "文献标题"}</label>
+                <textarea className="textarea" value={paperTitle} onChange={e => setPaperTitle(e.target.value)}
+                  style={{ minHeight: 64 }} placeholder={lang === "en" ? "Full title of the paper being presented" : "汇报文献的完整标题"} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label className="label">{lang === "en" ? "Presenter" : "汇报人"}</label>
+                  <input className="input" value={presenter} onChange={e => setPresenter(e.target.value)} placeholder={lang === "en" ? "Name" : "姓名"} />
+                </div>
+                <div>
+                  <label className="label">{lang === "en" ? "Presentation date" : "汇报日期"}</label>
+                  <input className="input" type="date" value={presentationDate} onChange={e => setPresentationDate(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="label">{lang === "en" ? "Research field" : "研究领域"}</label>
+                <input className="input" value={researchField} onChange={e => setResearchField(e.target.value)}
+                  placeholder={lang === "en" ? "e.g. Prostate cancer, RNA biology, CRISPR…" : "例如：前列腺癌、RNA 生物学、CRISPR…"} />
+              </div>
             </div>
           )}
         </div>
