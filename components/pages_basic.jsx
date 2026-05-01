@@ -38,9 +38,9 @@ function HomePage() {
       {/* Hero figure */}
       <section style={{ padding: "0", borderBottom: "1px solid var(--line)" }}>
         <div className="container" style={{ padding: "32px 32px 0" }}>
-          <div className="placeholder" style={{ height: 360, fontSize: 12 }}>
+          <AdminImage slot="home.groupPhoto" label="Yuan Lab group photo" style={{ height: 360 }} placeholderStyle={{ fontSize: 12 }}>
             LAB GROUP PHOTO · 1920 × 720 · DROP HERE
-          </div>
+          </AdminImage>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.06em" }}>
             <span>FIG · YUAN LAB / 2026 SPRING</span>
             <span>SHANGHAI · 上海</span>
@@ -192,9 +192,9 @@ function ResearchPage() {
                 {r.keywords.map(k => <span key={k} className="chip">{k}</span>)}
               </div>
             </div>
-            <div className="placeholder" style={{ height: 200, fontSize: 11 }}>
+            <AdminImage slot={`research.${r.id}`} label={r.title.en} style={{ height: 200 }} placeholderStyle={{ fontSize: 11 }}>
               FIG · {r.title.en.toUpperCase()} · CONCEPT
-            </div>
+            </AdminImage>
           </article>
         ))}
       </div>
@@ -288,7 +288,7 @@ function ContactPage() {
           </div>
           <div style={{ padding: "20px 0", borderBottom: "1px solid var(--line)" }}>
             <div className="eyebrow" style={{ marginBottom: 6 }}>PI · 课题组负责人</div>
-            <p style={{ margin: 0, fontSize: 15 }}>{D.pi.name[lang]} — <a href={"mailto:" + D.pi.email} style={{ color: "var(--accent)" }}>{D.pi.email}</a></p>
+            <p style={{ margin: 0, fontSize: 15 }}>{D.pi.name[lang]}</p>
           </div>
           <div style={{ padding: "20px 0" }}>
             <div className="eyebrow" style={{ marginBottom: 6 }}>Visiting · 来访</div>

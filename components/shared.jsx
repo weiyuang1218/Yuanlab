@@ -236,6 +236,88 @@ function ToastStack() {
   );
 }
 
+// ---------- Admin-uploadable image ----------
+function loadImageStore() {
+  try {
+    return JSON.parse(localStorage.getItem("yuanlab.images") || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveImageStore(images) {
+  localStorage.setItem("yuanlab.images", JSON.stringify(images));
+}
+
+function AdminImage({ slot, label, style, imgStyle, placeholderStyle, children }) {
+  const { user, lang, addToast, dbReady } = useApp();
+  const [url, setUrl] = useState(() => {
+    const stored = loadImageStore();
+    return stored[slot] || (window.LAB_DATA.images && window.LAB_DATA.images[slot]) || "";
+  });
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
+  const canUpload = user.role === "admin";
+
+  useEffect(() => {
+    const stored = loadImageStore();
+    const nextUrl = stored[slot] || (window.LAB_DATA.images && window.LAB_DATA.images[slot]) || "";
+    if (nextUrl && nextUrl !== url) setUrl(nextUrl);
+  }, [slot, dbReady]);
+
+  async function upload(file) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const safeName = file.name.replace(/\s+/g, "_");
+      const nextUrl = await window.SUPABASE.uploadFile("lab-images", `${slot}/${Date.now()}_${safeName}`, file);
+      const images = { ...loadImageStore(), [slot]: nextUrl };
+      if (!window.LAB_DATA.images) window.LAB_DATA.images = {};
+      window.LAB_DATA.images[slot] = nextUrl;
+      saveImageStore(images);
+      window.SUPABASE.insert("resources", {
+        title: slot,
+        category: "Site Images",
+        file_type: "IMAGE",
+        file_url: nextUrl,
+        is_public: false,
+        description: label || slot,
+        uploader: user.name || "Admin",
+      }).catch(() => {});
+      setUrl(nextUrl);
+      addToast(lang === "en" ? "Image uploaded" : "图片已上传");
+    } catch (e) {
+      addToast(lang === "en" ? "Image upload failed" : "图片上传失败");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "relative", ...style }}>
+      {url ? (
+        <img src={url} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "var(--radius)", ...imgStyle }} />
+      ) : (
+        <div className="placeholder" style={{ width: "100%", height: "100%", ...placeholderStyle }}>
+          {children}
+        </div>
+      )}
+      {canUpload && (
+        <>
+          <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }}
+            onChange={e => upload(e.target.files && e.target.files[0])} />
+          <button className="btn btn-ghost btn-sm" type="button"
+            onClick={e => { e.stopPropagation(); inputRef.current && inputRef.current.click(); }}
+            disabled={uploading}
+            style={{ position: "absolute", right: 10, bottom: 10, background: "var(--bg)", boxShadow: "var(--shadow-sm)" }}>
+            <Icon.upload /> {uploading ? (lang === "en" ? "Uploading" : "上传中") : (lang === "en" ? "Image" : "图片")}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- Section header ----------
 function SectionHeader({ eyebrow, title, action }) {
   return (
@@ -250,4 +332,4 @@ function SectionHeader({ eyebrow, title, action }) {
 }
 
 // expose
-Object.assign(window, { Icon, Logo, Nav, Footer, LoginModal, ToastStack, SectionHeader, AppCtx, useApp });
+Object.assign(window, { Icon, Logo, Nav, Footer, LoginModal, ToastStack, SectionHeader, AdminImage, AppCtx, useApp });

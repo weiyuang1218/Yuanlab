@@ -936,13 +936,31 @@ function EditPubModal({ pub, onSave, onClose, saving }) {
 function AdminMembers() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
-  const [members, setMembers] = useState([...D.members]);
+  function sortMembers(list) {
+    function degreeRank(m) {
+      const role = `${m.role || ""} ${m.roleCn || ""}`.toLowerCase();
+      if (role.includes("phd") || role.includes("博士")) return 0;
+      if (role.includes("master") || role.includes("硕士")) return 1;
+      return 2;
+    }
+    function joinedYear(m) {
+      const year = parseInt(String(m.year || m.role || m.roleCn || "").match(/\d{4}/)?.[0] || "", 10);
+      return Number.isFinite(year) ? year : 9999;
+    }
+    return [...list].sort((a, b) =>
+      degreeRank(a) - degreeRank(b) ||
+      joinedYear(a) - joinedYear(b) ||
+      String(a.name || "").localeCompare(String(b.name || ""))
+    );
+  }
+
+  const [members, setMembers] = useState(sortMembers(D.members));
   const [alumni, setAlumni] = useState([...(D.alumni || [])]);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
 
   function refresh() {
-    setMembers([...D.members]);
+    setMembers(sortMembers(D.members));
     setAlumni([...(D.alumni || [])]);
   }
 
@@ -956,6 +974,7 @@ function AdminMembers() {
       research_interests: m.focus || "",
       bio: m.bio || "", bio_cn: m.bioCn || "",
       email: m.email || "",
+      photo_url: m.photo_url || "",
       joined_year: yearInt,
       active: !isAlumni,
       sort_order: 0,
@@ -978,16 +997,16 @@ function AdminMembers() {
           if (fromAlumni >= 0) {
             D.alumni.splice(fromAlumni, 1);
             if (!D.members.find(x => x.id === m.id)) {
-              D.members.push({ ...m, active: true, year: yearInt ? yearInt + "–" : "" });
+              D.members.push({ ...m, photo_url: m.photo_url || "", active: true, year: yearInt ? yearInt + "–" : "" });
             }
           } else if (fromMembers >= 0) {
-            D.members[fromMembers] = { ...m, active: true };
+            D.members[fromMembers] = { ...m, photo_url: m.photo_url || "", active: true };
           }
         }
       } else {
         const result = await window.SUPABASE.insert("members", payload);
         const newId = Array.isArray(result) && result[0] ? result[0].id : ("m" + Date.now());
-        const newMember = { ...m, id: newId, year: yearInt ? yearInt + "–" : "", active: !isAlumni };
+        const newMember = { ...m, id: newId, photo_url: m.photo_url || "", year: yearInt ? yearInt + "–" : "", active: !isAlumni };
         if (isAlumni) {
           if (!D.alumni) D.alumni = [];
           D.alumni.push({ id: newId, name: m.name, nameCn: m.nameCn, role: m.role, next: "", active: false });
@@ -1075,9 +1094,28 @@ function AdminMembers() {
 }
 
 function EditMemberModal({ member, onSave, onClose, saving }) {
-  const { lang } = useApp();
+  const { lang, addToast } = useApp();
   const yearNum = parseInt(String(member.year).replace(/[^0-9]/g, "")) || new Date().getFullYear();
   const [m, setM] = useState({ ...member, year: yearNum });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
+
+  async function uploadPhoto(file) {
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const safeName = file.name.replace(/\s+/g, "_");
+      const path = `members/${m.id || "new"}_${Date.now()}_${safeName}`;
+      const photoUrl = await window.SUPABASE.uploadFile("lab-images", path, file);
+      setM(prev => ({ ...prev, photo_url: photoUrl }));
+      addToast(lang === "en" ? "Photo uploaded" : "照片已上传");
+    } catch (e) {
+      addToast(lang === "en" ? "Photo upload failed" : "照片上传失败");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
@@ -1086,6 +1124,34 @@ function EditMemberModal({ member, onSave, onClose, saving }) {
           <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
         </div>
         <div className="modal-body">
+          <div style={{ display: "grid", gridTemplateColumns: "96px 1fr", gap: 16, alignItems: "center", marginBottom: 16 }}>
+            <div>
+              {m.photo_url ? (
+                <img src={m.photo_url} alt={m.name || "Member"}
+                  style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
+              ) : (
+                <div className="placeholder" style={{ width: 80, height: 80, borderRadius: "50%", fontFamily: "var(--serif)", fontSize: 22, padding: 0 }}>
+                  {(m.name || "?").split(" ").map(s => s[0]).slice(0, 2).join("")}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="label">{lang === "en" ? "Member photo" : "成员照片"}</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={e => uploadPhoto(e.target.files && e.target.files[0])} />
+                <button className="btn btn-ghost btn-sm" type="button" disabled={uploadingPhoto}
+                  onClick={() => photoInputRef.current && photoInputRef.current.click()}>
+                  <Icon.upload /> {uploadingPhoto ? (lang === "en" ? "Uploading" : "上传中") : (lang === "en" ? "Upload photo" : "上传照片")}
+                </button>
+                {m.photo_url && (
+                  <button className="btn btn-text btn-sm" type="button" onClick={() => setM({ ...m, photo_url: "" })}>
+                    {lang === "en" ? "Remove" : "移除"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div><label className="label">Name (English)</label><input className="input" value={m.name} onChange={e => setM({ ...m, name: e.target.value })} /></div>
             <div><label className="label">中文姓名</label><input className="input" value={m.nameCn} onChange={e => setM({ ...m, nameCn: e.target.value })} /></div>

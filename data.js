@@ -138,7 +138,17 @@ window.SUPABASE.loadAll = async function () {
 
     // Resources — map DB field names (title, file_url, file_type) to frontend names
     if (resources && resources.length > 0) {
-      window.LAB_DATA.resources = resources.map(r => ({
+      window.LAB_DATA.images = {
+        ...(window.LAB_DATA.images || {}),
+        ...resources
+          .filter(r => r.category === "Site Images" && r.title && r.file_url)
+          .reduce((acc, r) => {
+            if (!acc[r.title]) acc[r.title] = r.file_url;
+            return acc;
+          }, {})
+      };
+
+      window.LAB_DATA.resources = resources.filter(r => r.category !== "Site Images").map(r => ({
         id: r.id,
         name: r.title || r.name || "",
         category: normalizeResourceCategory(r.category),
@@ -195,12 +205,14 @@ window.LAB_DATA = {
       en: "1200 Cailun Road, Pudong, Shanghai 201203, China",
       cn: "上海市浦东新区蔡伦路1200号 · 邮编 201203"
     },
-    email: "yuanlab@shutcm.edu.cn",
+    email: "yuanfuwen@shutcm.edu.cn",
     established: 2024
   },
 
+  images: {},
+
   pi: {
-    name: { en: "Fuwen Yuan, PhD", cn: "袁富文 博士" },
+    name: { en: "Fuwen Yuan", cn: "袁富文" },
     title: {
       en: "Principal Investigator · Professor · Doctoral Supervisor",
       cn: "研究员 · 博士生导师 · 上海市海外高层次人才"
@@ -219,7 +231,7 @@ window.LAB_DATA = {
       { en: "Young Investigator Award · Biomolecules", cn: "Biomolecules 杂志青年研究者奖" },
       { en: "Shanghai Overseas High-level Talent", cn: "上海市海外高层次人才" }
     ],
-    email: "fwyuan@shutcm.edu.cn",
+    email: "yuanfuwen@shutcm.edu.cn",
     orcid: "0000-0002-XXXX-XXXX"
   },
 
@@ -336,7 +348,7 @@ window.LAB_DATA = {
       { title: "博士研究生（2026 级）", body: "通过上海中医药大学统一招生录取，每年招收约 2 名博士。要求具有较强的分子生物学、生物化学或生物信息学背景，有 R / Python 编程经验者优先。" },
       { title: "硕士研究生", body: "每年招收 1–2 名硕士。临床医学、中西医结合、生物学、药理学背景同学均可申请。" },
       { title: "博士后", body: "(a) AR 靶向治疗 (b) 基因编辑工具 (c) 计算肿瘤学 三个方向均开放岗位。提供具有竞争力的待遇及上海中医药大学博士后基金支持。" },
-      { title: "轮转 / 访问学生", body: "面向 3–6 个月的短期轮转开放申请。请将 CV 和一段研究意向陈述发送至 yuanlab@shutcm.edu.cn。" }
+      { title: "轮转 / 访问学生", body: "面向 3–6 个月的短期轮转开放申请。请将 CV 和一段研究意向陈述发送至 yuanfuwen@shutcm.edu.cn。" }
     ]
   }
 };

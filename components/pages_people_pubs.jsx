@@ -1,12 +1,30 @@
 // People + Publications
 
 function PeoplePage() {
-  const { lang, t } = useApp();
+  const { lang, t, addToast } = useApp();
   const D = window.LAB_DATA;
   const [selected, setSelected] = useState(null);
+  const [imageRev, setImageRev] = useState(0);
 
   // Split by active field (DB-driven) — fall back to D.alumni for seed data
-  const currentMembers = D.members.filter(m => m.active !== false);
+  function memberSortValue(m) {
+    const role = `${m.role || ""} ${m.roleCn || ""}`.toLowerCase();
+    if (role.includes("phd") || role.includes("博士")) return 0;
+    if (role.includes("master") || role.includes("硕士")) return 1;
+    return 2;
+  }
+  function memberYearValue(m) {
+    const year = parseInt(String(m.year || m.role || m.roleCn || "").match(/\d{4}/)?.[0] || "", 10);
+    return Number.isFinite(year) ? year : 9999;
+  }
+
+  const currentMembers = D.members
+    .filter(m => m.active !== false)
+    .sort((a, b) =>
+      memberSortValue(a) - memberSortValue(b) ||
+      memberYearValue(a) - memberYearValue(b) ||
+      String(a.name || "").localeCompare(String(b.name || ""))
+    );
   const dbAlumni = D.members.filter(m => m.active === false);
   const seedAlumni = D.alumni || [];
   // Merge: db alumni + seed alumni (avoid duplicates by name)
@@ -14,6 +32,23 @@ function PeoplePage() {
     ...dbAlumni.map(m => ({ name: m.name, nameCn: m.nameCn, role: m.role, next: m.next || "" })),
     ...seedAlumni.filter(a => !dbAlumni.find(m => m.name === a.name)),
   ];
+
+  async function uploadMemberPhoto(member, file) {
+    if (!file) return;
+    try {
+      const safeName = file.name.replace(/\s+/g, "_");
+      const photoUrl = await window.SUPABASE.uploadFile("lab-images", `members/${member.id}_${Date.now()}_${safeName}`, file);
+      const index = D.members.findIndex(m => m.id === member.id);
+      if (index >= 0) D.members[index] = { ...D.members[index], photo_url: photoUrl };
+      if (isUUID(member.id)) {
+        await window.SUPABASE.update("members", member.id, { photo_url: photoUrl });
+      }
+      setImageRev(r => r + 1);
+      addToast(lang === "en" ? "Photo uploaded" : "照片已上传");
+    } catch (e) {
+      addToast(lang === "en" ? "Photo upload failed" : "照片上传失败");
+    }
+  }
 
   return (
     <div className="page-fade container" style={{ padding: "64px 32px 0" }}>
@@ -25,9 +60,9 @@ function PeoplePage() {
         <SectionHeader eyebrow="01" title={t.people.pi} action={null} />
         <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 48 }}>
           <div>
-            <div className="placeholder" style={{ aspectRatio: "3 / 4", marginBottom: 16, fontSize: 11 }}>
+            <AdminImage slot="people.piPortrait" label={D.pi.name.en} style={{ aspectRatio: "3 / 4", marginBottom: 16 }} placeholderStyle={{ fontSize: 11 }}>
               PI PORTRAIT · 600 × 800
-            </div>
+            </AdminImage>
             <h3 style={{ marginBottom: 4 }}>{D.pi.name[lang]}</h3>
             <p style={{ fontSize: 13.5, color: "var(--ink-2)", margin: 0 }}>{D.pi.title[lang]}</p>
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -82,20 +117,7 @@ function PeoplePage() {
               onMouseLeave={e => e.currentTarget.style.background = "var(--bg)"}>
               {/* Avatar — left ~40% */}
               <div style={{ flexShrink: 0, width: "40%", display: "flex", justifyContent: "center", alignItems: "center", paddingRight: 16 }}>
-                {m.photo_url ? (
-                  <img src={m.photo_url} alt={m.name}
-                    style={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
-                ) : (
-                  <div style={{
-                    width: 88, height: 88, borderRadius: "50%",
-                    background: "var(--bg-3)", border: "1px solid var(--line-2)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: "var(--serif)", fontSize: 26, color: "var(--ink-3)",
-                    letterSpacing: "-0.02em", flexShrink: 0,
-                  }}>
-                    {m.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
-                  </div>
-                )}
+                <MemberPhoto member={m} imageRev={imageRev} onUpload={uploadMemberPhoto} />
               </div>
               {/* Info — right ~60% */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -136,16 +158,59 @@ function PeoplePage() {
   );
 }
 
+function MemberPhoto({ member, imageRev, onUpload }) {
+  const { user, lang } = useApp();
+  const inputRef = useRef(null);
+  const initials = member.name.split(" ").map(s => s[0]).slice(0, 2).join("");
+  return (
+    <div style={{ position: "relative", width: 88, height: 88, flexShrink: 0 }}>
+      {member.photo_url ? (
+        <img src={member.photo_url} alt={member.name}
+          style={{ width: 88, height: 88, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
+      ) : (
+        <div style={{
+          width: 88, height: 88, borderRadius: "50%",
+          background: "var(--bg-3)", border: "1px solid var(--line-2)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "var(--serif)", fontSize: 26, color: "var(--ink-3)",
+          letterSpacing: "-0.02em",
+        }}>
+          {initials}
+        </div>
+      )}
+      {user.role === "admin" && (
+        <>
+          <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }}
+            onClick={e => e.stopPropagation()}
+            onChange={e => onUpload(member, e.target.files && e.target.files[0])} />
+          <button className="btn btn-ghost btn-sm" type="button"
+            onClick={e => { e.stopPropagation(); inputRef.current && inputRef.current.click(); }}
+            title={lang === "en" ? "Upload photo" : "上传照片"}
+            style={{ position: "absolute", right: -6, bottom: -6, padding: "4px 6px", background: "var(--bg)", boxShadow: "var(--shadow-sm)" }}>
+            <Icon.upload />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MemberModal({ member, onClose }) {
   const { lang } = useApp();
+  const initials = member.name.split(" ").map(s => s[0]).slice(0, 2).join("");
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div className="placeholder" style={{ width: 56, height: 56, borderRadius: 100, fontFamily: "var(--serif)", fontSize: 18, padding: 0 }}>
-              {member.name.split(" ").map(s => s[0]).slice(0, 2).join("")}
-            </div>
+            {member.photo_url ? (
+              <img src={member.photo_url} alt={member.name}
+                style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
+            ) : (
+              <div className="placeholder" style={{ width: 56, height: 56, borderRadius: 100, fontFamily: "var(--serif)", fontSize: 18, padding: 0 }}>
+                {initials}
+              </div>
+            )}
             <div>
               <h3>{lang === "en" ? member.name : member.nameCn}</h3>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>
