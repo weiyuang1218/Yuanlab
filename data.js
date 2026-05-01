@@ -62,18 +62,46 @@ window.SUPABASE = {
     return res.ok;
   },
 
+  async _getJWT() {
+    if (this._cachedJWT) return this._cachedJWT;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=anonymous`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Content-Type": "application/json"
+        },
+        body: "{}"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.access_token) {
+          this._cachedJWT = data.access_token;
+          return this._cachedJWT;
+        }
+      }
+    } catch (e) {}
+    return SUPABASE_KEY;
+  },
+
   async uploadFile(bucket, path, file) {
+    const token = await this._getJWT();
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Authorization": `Bearer ${token}`,
         "Content-Type": file.type || "application/octet-stream",
         "x-upsert": "true",
       },
       body: file,
     });
-    if (!res.ok) throw new Error("Upload failed: " + res.status);
+    if (!res.ok) {
+      let detail = "";
+      try { detail = await res.text(); } catch (_) {}
+      console.error(`[Supabase Storage] upload failed — HTTP ${res.status} — bucket: ${bucket}, path: ${path}`, detail);
+      throw new Error("Upload failed: " + res.status);
+    }
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
 };
@@ -325,7 +353,10 @@ window.LAB_DATA = {
     { id: "f6",  category: "Literature PPT",    name: "Cell Death Discov 2025 — Saikosaponin-D / PIM1",   type: "PPTX", size: "18 MB",   uploaded: "2026-04-15", uploader: "Minghuang Xu", downloads: 12 },
     { id: "f7",  category: "Literature PPT",    name: "Nat Chem Biol 2022 — Cas13d Ctsl SARS-CoV-2",      type: "PPTX", size: "9.4 MB",  uploaded: "2026-03-08", uploader: "Chunmei Zhou", downloads: 18 },
     { id: "f8",  category: "Duty Roster",       name: "Lab duty roster · 2026 Q2",                        type: "XLSX", size: "48 KB",   uploaded: "2026-03-30", uploader: "Lab Manager",  downloads: 31 },
+    { id: "f9",  category: "Lab Meeting",       name: "Group meeting schedule · 2026 Spring",             type: "XLSX", size: "32 KB",   uploaded: "2026-02-25", uploader: "Lab Manager",  downloads: 47 },
     { id: "f10", category: "Reagent Inventory", name: "Antibody inventory · master sheet",                type: "XLSX", size: "210 KB",  uploaded: "2026-04-18", uploader: "Lab Manager",  downloads: 22 },
+    { id: "f11", category: "Reagent Inventory", name: "Plasmid bank · CRISPR vectors",                    type: "XLSX", size: "96 KB",   uploaded: "2026-04-02", uploader: "Siliang Wang", downloads: 15 },
+    { id: "f12", category: "Reading Group",     name: "Reading list · April 2026",                        type: "PDF",  size: "180 KB",  uploaded: "2026-04-01", uploader: "Fuwen Yuan",   downloads: 19 }
   ],
 
   accounts: [
