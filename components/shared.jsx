@@ -58,6 +58,7 @@ function Nav() {
     ["research",     t.nav.research],
     ["publications", t.nav.publications],
     ["resources",    t.nav.resources],
+    ["calendar",     t.nav.calendar],
     ["join",         t.nav.join],
     ["contact",      t.nav.contact],
   ];
@@ -302,7 +303,9 @@ function AdminImage({ slot, label, style, imgStyle, placeholderStyle, children }
       const images = { ...loadImageStore(), [slot]: nextUrl };
       if (!window.LAB_DATA.images) window.LAB_DATA.images = {};
       window.LAB_DATA.images[slot] = nextUrl;
-      saveImageStore(images);
+      try { saveImageStore(images); } catch (e) {
+        console.warn("[AdminImage] localStorage save failed:", e.message);
+      }
       // Always persist to DB so image survives across devices/browsers
       window.SUPABASE.insert("resources", {
         title: slot,
@@ -316,6 +319,7 @@ function AdminImage({ slot, label, style, imgStyle, placeholderStyle, children }
       setUrl(nextUrl);
       addToast(lang === "en" ? "Image uploaded" : "图片已上传");
     } catch (e) {
+      console.error("[AdminImage] upload error:", e);
       addToast(lang === "en" ? "Image upload failed" : "图片上传失败");
     } finally {
       setUploading(false);

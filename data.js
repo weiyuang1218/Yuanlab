@@ -62,18 +62,46 @@ window.SUPABASE = {
     return res.ok;
   },
 
+  async _getJWT() {
+    if (this._cachedJWT) return this._cachedJWT;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=anonymous`, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Content-Type": "application/json"
+        },
+        body: "{}"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.access_token) {
+          this._cachedJWT = data.access_token;
+          return this._cachedJWT;
+        }
+      }
+    } catch (e) {}
+    return SUPABASE_KEY;
+  },
+
   async uploadFile(bucket, path, file) {
+    const token = await this._getJWT();
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Authorization": `Bearer ${token}`,
         "Content-Type": file.type || "application/octet-stream",
         "x-upsert": "true",
       },
       body: file,
     });
-    if (!res.ok) throw new Error("Upload failed: " + res.status);
+    if (!res.ok) {
+      let detail = "";
+      try { detail = await res.text(); } catch (_) {}
+      console.error(`[Supabase Storage] upload failed — HTTP ${res.status} — bucket: ${bucket}, path: ${path}`, detail);
+      throw new Error("Upload failed: " + res.status);
+    }
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
 };
@@ -236,12 +264,12 @@ window.LAB_DATA = {
   },
 
   members: [
-    { id: "m1", name: "Yuang Wei",     nameCn: "卫宇昂", role: "PhD · 2023 (Joint)",  roleCn: "2023 级博士（联合培养）", year: "2023–", focus: "Adipose tissue senescence and tumor progression", focusCn: "脂肪组织衰老与肿瘤进展", email: "" },
-    { id: "m2", name: "Siliang Wang",  nameCn: "王思亮", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
-    { id: "m3", name: "Yunxiao Qiao",  nameCn: "乔云笑", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "" },
-    { id: "m4", name: "Xiaowen Song",  nameCn: "宋晓雯", role: "PhD · 2026",          roleCn: "2026 级博士",            year: "2026–", focus: "", focusCn: "", email: "" },
+    { id: "m1", name: "Yuang Wei",     nameCn: "卫宇昂", role: "PhD · 2023 (Joint)",  roleCn: "2023 级博士（联合培养）", year: "2023–", focus: "Adipose tissue senescence and tumor progression", focusCn: "脂肪组织衰老与肿瘤进展", email: "", birthday: "05-04" },
+    { id: "m2", name: "Siliang Wang",  nameCn: "王思亮", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "", birthday: "08-12" },
+    { id: "m3", name: "Yunxiao Qiao",  nameCn: "乔云笑", role: "PhD · 2025",          roleCn: "2025 级博士",            year: "2025–", focus: "", focusCn: "", email: "", birthday: "03-22" },
+    { id: "m4", name: "Xiaowen Song",  nameCn: "宋晓雯", role: "PhD · 2026",          roleCn: "2026 级博士",            year: "2026–", focus: "", focusCn: "", email: "", birthday: "05-15" },
     { id: "m5", name: "Chuang Xie",    nameCn: "谢 创",  role: "Master · 2024",       roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "" },
-    { id: "m6", name: "Xinyi Xu",      nameCn: "许心怡", role: "Master · 2024",       roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "" },
+    { id: "m6", name: "Xinyi Xu",      nameCn: "许心怡", role: "Master · 2024",       roleCn: "2024 级硕士",            year: "2024–", focus: "", focusCn: "", email: "", birthday: "11-08" },
     { id: "m7", name: "Minghuang Xu",  nameCn: "徐明煌", role: "Master · 2025",       roleCn: "2025 级硕士",            year: "2025–", focus: "", focusCn: "", email: "" },
     { id: "m8", name: "Chunmei Zhou",  nameCn: "周春梅", role: "Master · 2025",       roleCn: "2025 级硕士",            year: "2025–", focus: "", focusCn: "", email: "" }
   ],
@@ -337,6 +365,28 @@ window.LAB_DATA = {
     { username: "guest",    password: "",               role: "guest",  name: "Visitor",    nameCn: "访客" }
   ],
 
+  home: {
+    hero: {
+      en: "Where traditional medicine meets molecular oncology.",
+      cn: "传统中医药与现代分子肿瘤学的碰撞。"
+    },
+    joinLead: {
+      en: "Yuan Lab is recruiting curious, persistent scientists who want to work at the boundary of cancer biology and integrative medicine.",
+      cn: "袁富文课题组招聘对肿瘤生物学与中西医结合交叉领域抱有持续好奇心的研究者。"
+    }
+  },
+
+  events: [
+    { id: "e1", title: "Lab meeting", date: "2026-05-04", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · progress reports", repeat: "weekly" },
+    { id: "e2", title: "Journal club", date: "2026-05-11", startTime: "15:00", endTime: "16:30", location: "Conference Room", people: "Yuang Wei, Siliang Wang", priority: 2, description: "Literature presentation and discussion", repeat: "biweekly" },
+    { id: "e3", title: "Grant deadline", date: "2026-05-20", startTime: "", endTime: "", location: "", people: "", priority: 1, description: "NSFC grant submission deadline", repeat: "none" },
+    { id: "e4", title: "Special seminar", date: "2026-05-22", startTime: "10:00", endTime: "11:30", location: "Lecture Hall", people: "Guest speaker", priority: 2, description: "CRISPR applications in cancer research", repeat: "none" },
+    { id: "e5", title: "Monthly lab cleanup", date: "2026-05-29", startTime: "16:00", endTime: "17:00", location: "Lab", people: "Everyone", priority: 3, description: "Monthly lab organization and cleanup", repeat: "monthly" },
+    { id: "e6", title: "Group meeting", date: "2026-05-25", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · data review", repeat: "weekly" },
+    { id: "e7", title: "PhD defense", date: "2026-06-05", startTime: "09:00", endTime: "12:00", location: "Academic Hall", people: "Defense committee", priority: 1, description: "PhD thesis defense", repeat: "none" },
+    { id: "e8", title: "Daily lab check", date: "2026-05-01", startTime: "09:00", endTime: "09:30", location: "Lab", people: "On-duty member", priority: 3, description: "Daily equipment and safety check", repeat: "daily" },
+  ],
+
   joinUs: {
     en: [
       { title: "PhD students (2026)", body: "We accept ~2 PhD students per year through the SHUTCM unified admission. Strong background in molecular biology, biochemistry, or bioinformatics; demonstrated coding (R/Python) is a plus." },
@@ -353,10 +403,24 @@ window.LAB_DATA = {
   }
 };
 
+// Restore persisted page content from localStorage (overrides seed defaults)
+try {
+  const h = localStorage.getItem("yuanlab.home");
+  if (h) Object.assign(window.LAB_DATA.home, JSON.parse(h));
+} catch (e) {}
+try {
+  const j = localStorage.getItem("yuanlab.joinUs");
+  if (j) Object.assign(window.LAB_DATA.joinUs, JSON.parse(j));
+} catch (e) {}
+try {
+  const raw = localStorage.getItem("yuanlab.events");
+  if (raw) window.LAB_DATA.events = JSON.parse(raw);
+} catch (_) {}
+
 // i18n strings
 window.LAB_I18N = {
   en: {
-    nav: { home: "Home", people: "People", research: "Research", publications: "Publications", resources: "Resources", join: "Join Us", contact: "Contact" },
+    nav: { home: "Home", people: "People", research: "Research", publications: "Publications", resources: "Resources", join: "Join Us", contact: "Contact", calendar: "Calendar" },
     actions: { signin: "Sign in", signout: "Sign out", admin: "Admin", openAdmin: "Open admin console" },
     home: {
       missionLabel: "Mission",
@@ -378,7 +442,7 @@ window.LAB_I18N = {
     common: { close: "Close", save: "Save", cancel: "Cancel", delete: "Delete", edit: "Edit", add: "Add", upload: "Upload", confirm: "Confirm", search: "Search" }
   },
   cn: {
-    nav: { home: "首页", people: "成员", research: "研究方向", publications: "论文", resources: "共享资源", join: "招生", contact: "联系" },
+    nav: { home: "首页", people: "成员", research: "研究方向", publications: "论文", resources: "共享资源", join: "招生", contact: "联系", calendar: "日程" },
     actions: { signin: "登录", signout: "退出", admin: "后台", openAdmin: "进入管理后台" },
     home: {
       missionLabel: "使命",

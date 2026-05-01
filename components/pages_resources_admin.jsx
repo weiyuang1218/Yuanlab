@@ -44,7 +44,7 @@ function protocolNameCompare(a, b, lang, dir) {
 }
 
 function ResourcesPage() {
-  const { lang, t, user, openLogin, addToast } = useApp();
+  const { lang, t, user, openLogin, addToast, dbReady } = useApp();
   const D = window.LAB_DATA;
   const [files, setFiles] = useState(D.resources.map(f => ({ ...f, category: normalizeResourceCategory(f.category) })));
   const [activeCat, setActiveCat] = useState(RESOURCE_CATEGORIES.internalProtocols);
@@ -67,6 +67,11 @@ function ResourcesPage() {
       setActiveCat(visibleCats[0]);
     }
   }, [activeCat, visibleCats]);
+
+  // Re-sync files list when DB data finishes loading (after seed data)
+  useEffect(() => {
+    setFiles(D.resources.map(f => ({ ...f, category: normalizeResourceCategory(f.category) })));
+  }, [dbReady]);
 
   const visible = useMemo(() => {
     let list = files.filter(f =>
@@ -549,7 +554,7 @@ function ResourceDetailModal({ file, canEdit, onEdit, onDownload, onClose, lang 
   ];
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 660 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{
@@ -571,6 +576,9 @@ function ResourceDetailModal({ file, canEdit, onEdit, onDownload, onClose, lang 
               <span style={{ fontSize: 14, color: "var(--ink)", lineHeight: 1.55 }}>{val}</span>
             </div>
           ) : null)}
+          <div style={{ marginTop: 8, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
+            <DiscussionSection resourceId={file.id} />
+          </div>
         </div>
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
           {canEdit && (
@@ -672,6 +680,298 @@ function ResourceEditModal({ file, onSave, onClose, lang }) {
 }
 
 
+// ── Discussion / Comment System ────────────────────────────────────────────────
+
+const COMMENTS_KEY = "yuanlab.comments";
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 0) return "just now";
+  if (diff < 60000) return Math.floor(diff / 1000) + "s ago";
+  if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function loadCommentStore() {
+  try { return JSON.parse(localStorage.getItem(COMMENTS_KEY) || "{}"); } catch (e) { return {}; }
+}
+function saveCommentStore(data) {
+  try { localStorage.setItem(COMMENTS_KEY, JSON.stringify(data)); } catch (e) {}
+}
+
+function getResourceComments(resourceId) {
+  const store = loadCommentStore();
+  return store[resourceId] || [];
+}
+
+function putComment(resourceId, comment) {
+  const store = loadCommentStore();
+  if (!store[resourceId]) store[resourceId] = [];
+  const idx = store[resourceId].findIndex(c => c.id === comment.id);
+  if (idx >= 0) store[resourceId][idx] = comment;
+  else store[resourceId].push(comment);
+  saveCommentStore(store);
+}
+
+async function syncCommentToSupabase(comment) {
+  try {
+    await window.SUPABASE.insert("resource_comments", {
+      id: comment.id, resource_id: comment.resourceId,
+      parent_id: comment.parentId, author: comment.author,
+      author_username: comment.authorUsername, content: comment.content,
+      likes: comment.likes, liked_by: comment.likedBy,
+      created_at: comment.createdAt,
+    });
+  } catch (e) {}
+}
+
+async function syncLikeToSupabase(comment) {
+  try {
+    await window.SUPABASE.update("resource_comments", comment.id, {
+      likes: comment.likes, liked_by: comment.likedBy,
+    });
+  } catch (e) {}
+}
+
+async function loadSupabaseComments(resourceId) {
+  try {
+    const records = await window.SUPABASE.query("resource_comments", {
+      filter: `resource_id=eq.${resourceId}`, order: "created_at.asc"
+    });
+    if (!records || records.length === 0) return null;
+    return records.map(r => ({
+      id: r.id, resourceId: r.resource_id, parentId: r.parent_id,
+      author: r.author, authorUsername: r.author_username,
+      content: r.content, likes: r.likes || 0,
+      likedBy: r.liked_by || [], createdAt: r.created_at,
+    }));
+  } catch (e) { return null; }
+}
+
+function DiscussionSection({ resourceId }) {
+  const { user, lang, addToast } = useApp();
+  const [comments, setComments] = useState(() => getResourceComments(resourceId));
+  const [text, setText] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [replyText, setReplyText] = useState("");
+
+  // Best-effort merge from Supabase on mount
+  useEffect(() => {
+    loadSupabaseComments(resourceId).then(db => {
+      if (!db || db.length === 0) return;
+      const local = getResourceComments(resourceId);
+      const seen = new Set(local.map(c => c.id));
+      const merged = [...local];
+      for (const c of db) {
+        if (!seen.has(c.id)) { merged.push(c); seen.add(c.id); }
+      }
+      merged.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      setComments(merged);
+      const store = loadCommentStore();
+      store[resourceId] = merged;
+      saveCommentStore(store);
+    }).catch(() => {});
+  }, [resourceId]);
+
+  function postComment() {
+    if (!text.trim()) return;
+    const c = { id: genId(), resourceId, parentId: null,
+      author: user.name, authorUsername: user.username,
+      content: text.trim(), likes: 0, likedBy: [], createdAt: new Date().toISOString() };
+    putComment(resourceId, c);
+    setComments(getResourceComments(resourceId));
+    setText("");
+    syncCommentToSupabase(c);
+    addToast(lang === "en" ? "Comment posted" : "评论已发布");
+  }
+
+  function postReply(parentId) {
+    if (!replyText.trim()) return;
+    const c = { id: genId(), resourceId, parentId,
+      author: user.name, authorUsername: user.username,
+      content: replyText.trim(), likes: 0, likedBy: [], createdAt: new Date().toISOString() };
+    putComment(resourceId, c);
+    setComments(getResourceComments(resourceId));
+    setReplyText(""); setReplyTo(null);
+    syncCommentToSupabase(c);
+  }
+
+  function toggleLike(commentId) {
+    const store = loadCommentStore();
+    const list = store[resourceId] || [];
+    const idx = list.findIndex(c => c.id === commentId);
+    if (idx < 0) return;
+    const c = list[idx];
+    const already = c.likedBy.includes(user.username);
+    c.likes = already ? c.likes - 1 : c.likes + 1;
+    c.likedBy = already ? c.likedBy.filter(u => u !== user.username) : [...c.likedBy, user.username];
+    saveCommentStore(store);
+    setComments([...list]);
+    syncLikeToSupabase(c);
+  }
+
+  function deleteComment(commentId) {
+    if (!window.confirm(lang === "en" ? "Delete this comment?" : "确认删除此评论？")) return;
+    // Remove the comment and all its replies from store
+    const store = loadCommentStore();
+    const list = store[resourceId] || [];
+    const idsToRemove = new Set([commentId]);
+    list.forEach(c => { if (c.parentId === commentId) idsToRemove.add(c.id); });
+    const filtered = list.filter(c => !idsToRemove.has(c.id));
+    store[resourceId] = filtered;
+    saveCommentStore(store);
+    setComments(filtered);
+    // Best-effort Supabase delete
+    idsToRemove.forEach(id => {
+      try { window.SUPABASE.remove("resource_comments", id).catch(() => {}); } catch (e) {}
+    });
+  }
+
+  const topLevel = comments.filter(c => !c.parentId);
+
+  return (
+    <div>
+      <div className="eyebrow" style={{ marginBottom: 12 }}>
+        {lang === "en" ? "Discussion" : "讨论区"} {topLevel.length > 0 ? `(${topLevel.length})` : ""}
+      </div>
+
+      {user.role !== "guest" ? (
+        <div style={{ marginBottom: 20 }}>
+          <textarea className="textarea" value={text} onChange={e => setText(e.target.value)}
+            placeholder={lang === "en" ? "Share your thoughts..." : "分享你的想法..."}
+            style={{ minHeight: 56, fontSize: 13.5 }} />
+          <div style={{ textAlign: "right", marginTop: 8 }}>
+            <button className="btn btn-primary btn-sm" onClick={postComment} disabled={!text.trim()}>
+              {lang === "en" ? "Post comment" : "发布评论"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p style={{ fontSize: 13, color: "var(--ink-3)", fontStyle: "italic", marginBottom: 16 }}>
+          {lang === "en" ? "Sign in to join the discussion." : "登录后可参与讨论。"}
+        </p>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {topLevel.length === 0 && (
+          <p style={{ fontSize: 13.5, color: "var(--ink-3)", textAlign: "center", padding: 20 }}>
+            {lang === "en" ? "No comments yet. Be the first to share!" : "暂无评论，快来第一个发言吧！"}
+          </p>
+        )}
+        {topLevel.map(c => (
+          <CommentCard
+            key={c.id} comment={c}
+            replies={comments.filter(r => r.parentId === c.id)}
+            replyTo={replyTo} replyText={replyText}
+            setReplyTo={setReplyTo} setReplyText={setReplyText}
+            onReply={postReply} onLike={toggleLike} onDelete={deleteComment} user={user} lang={lang}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommentCard({ comment, replies, replyTo, replyText, setReplyTo, setReplyText, onReply, onLike, onDelete, user, lang }) {
+  const isReplying = replyTo === comment.id;
+  const liked = user?.username && comment.likedBy?.includes(user.username);
+
+  return (
+    <div style={{ padding: 12, background: "var(--bg)", borderRadius: "var(--radius)", border: "1px solid var(--line)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{
+          width: 24, height: 24, borderRadius: 100, flexShrink: 0,
+          background: "var(--accent-soft)", color: "var(--accent-2)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 10, fontWeight: 600,
+        }}>{(comment.author || "?").split(" ").map(s => s[0]).slice(0, 2).join("")}</span>
+        <span style={{ fontSize: 13, fontWeight: 500 }}>{comment.author}</span>
+        <span style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{fmtTime(comment.createdAt)}</span>
+      </div>
+      <p style={{ fontSize: 13.5, color: "var(--ink)", margin: "0 0 8px", lineHeight: 1.5, wordBreak: "break-word" }}>
+        {comment.content}
+      </p>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <button className="btn btn-text btn-sm" onClick={() => onLike(comment.id)}
+          style={{ color: liked ? "var(--brick)" : "var(--ink-3)", fontSize: 12, padding: "2px 0" }}>
+          <span style={{ marginRight: 3 }}>{liked ? "♡" : "♡"}</span> {comment.likes || 0}
+        </button>
+        {user.role !== "guest" && (
+          <button className="btn btn-text btn-sm" onClick={() => setReplyTo(isReplying ? null : comment.id)}
+            style={{ fontSize: 12, padding: "2px 0", color: "var(--ink-3)" }}>
+            {lang === "en" ? "Reply" : "回复"}
+          </button>
+        )}
+        {user.role === "admin" && (
+          <button className="btn btn-text btn-sm" onClick={() => onDelete(comment.id)}
+            style={{ fontSize: 12, padding: "2px 0", color: "var(--danger)", marginLeft: "auto" }}>
+            <Icon.trash />
+          </button>
+        )}
+      </div>
+
+      {isReplying && (
+        <div style={{ marginTop: 10 }}>
+          <textarea className="textarea" value={replyText} onChange={e => setReplyText(e.target.value)}
+            placeholder={lang === "en" ? "Write a reply..." : "写下回复..."}
+            style={{ minHeight: 48, fontSize: 13 }} />
+          <div style={{ marginTop: 6, display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setReplyTo(null); setReplyText(""); }}>
+              {lang === "en" ? "Cancel" : "取消"}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={() => onReply(comment.id)} disabled={!replyText.trim()}>
+              {lang === "en" ? "Reply" : "回复"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {replies.length > 0 && (
+        <div style={{ marginTop: 10, paddingLeft: 24, borderLeft: "2px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+          {replies.map(r => (
+            <div key={r.id} style={{ padding: 10, background: "var(--bg-2)", borderRadius: "var(--radius)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: 100, flexShrink: 0,
+                  background: "var(--accent-soft)", color: "var(--accent-2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 8, fontWeight: 600,
+                }}>{(r.author || "?").split(" ").map(s => s[0]).slice(0, 2).join("")}</span>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>{r.author}</span>
+                <span style={{ fontSize: 10, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{fmtTime(r.createdAt)}</span>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--ink)", margin: "0 0 4px", lineHeight: 1.45, wordBreak: "break-word" }}>
+                {r.content}
+              </p>
+              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button className="btn btn-text btn-sm" onClick={() => onLike(r.id)}
+                  style={{ color: r.likedBy?.includes(user?.username) ? "var(--brick)" : "var(--ink-3)", fontSize: 11, padding: "1px 0" }}>
+                  <span style={{ marginRight: 2 }}>{r.likedBy?.includes(user?.username) ? "♡" : "♡"}</span> {r.likes || 0}
+                </button>
+                {user.role === "admin" && (
+                  <button className="btn btn-text btn-sm" onClick={() => onDelete(r.id)}
+                    style={{ fontSize: 10, padding: "1px 0", color: "var(--danger)" }}>
+                    <Icon.trash />
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ==================== Admin Console ====================
 
 function AdminPage() {
@@ -694,7 +994,10 @@ function AdminPage() {
     ["members", lang === "en" ? "Members" : "成员"],
     ["resources", lang === "en" ? "Files" : "文件"],
     ["news", lang === "en" ? "News" : "动态"],
+    ["calendar", lang === "en" ? "Calendar" : "日程"],
     ["pages", lang === "en" ? "Pages" : "页面"],
+    ["join", lang === "en" ? "Join Us" : "招生"],
+    ["messages", lang === "en" ? "Messages" : "留言"],
     ["users", lang === "en" ? "Users" : "用户"],
   ];
 
@@ -732,7 +1035,10 @@ function AdminPage() {
           {tab === "members" && <AdminMembers />}
           {tab === "resources" && <AdminResources />}
           {tab === "news" && <AdminNews />}
+          {tab === "calendar" && <AdminCalendar />}
           {tab === "pages" && <AdminPages />}
+          {tab === "join" && <AdminJoinUs />}
+          {tab === "messages" && <AdminMessages />}
           {tab === "users" && <AdminUsers />}
         </div>
       </div>
@@ -1198,10 +1504,15 @@ function EditMemberModal({ member, onSave, onClose, saving }) {
 // ── Resources ─────────────────────────────────────────────────────────────────
 
 function AdminResources() {
-  const { lang, user, addToast } = useApp();
+  const { lang, user, addToast, dbReady } = useApp();
   const D = window.LAB_DATA;
   const [files, setFiles] = useState(D.resources.map(f => ({ ...f, category: normalizeResourceCategory(f.category) })));
   const [showUpload, setShowUpload] = useState(false);
+
+  // Re-sync when DB data loads
+  useEffect(() => {
+    setFiles(D.resources.map(f => ({ ...f, category: normalizeResourceCategory(f.category) })));
+  }, [dbReady]);
 
   async function remove(id) {
     if (!window.confirm(lang === "en" ? "Delete this file record?" : "确认删除此文件记录？")) return;
@@ -1563,28 +1874,251 @@ function AdminNews() {
   );
 }
 
+// ── Calendar ──────────────────────────────────────────────────────────────────
+
+const PRIORITY_OPTIONS = [
+  [1, "High", "高"],
+  [2, "Medium", "中"],
+  [3, "Low", "低"],
+];
+const REPEAT_OPTIONS = [
+  ["none", "None", "不重复"],
+  ["daily", "Daily", "每天"],
+  ["weekly", "Weekly", "每周"],
+  ["biweekly", "Every 2 weeks", "每两周"],
+  ["monthly", "Monthly", "每月"],
+];
+
+function AdminCalendar() {
+  const { lang, addToast } = useApp();
+  const D = window.LAB_DATA;
+  const [events, setEvents] = useState([...D.events]);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  function genId() { return "e" + Date.now().toString(36); }
+
+  function persist(list) {
+    D.events = list;
+    setEvents([...list]);
+    try { localStorage.setItem("yuanlab.events", JSON.stringify(list)); } catch (e) {}
+  }
+
+  async function save(data) {
+    setSaving(true);
+    const list = [...events];
+    if (data.id && list.find(e => e.id === data.id)) {
+      const idx = list.findIndex(e => e.id === data.id);
+      list[idx] = data;
+    } else {
+      list.push({ ...data, id: data.id || genId() });
+    }
+    // Sort by date then time
+    list.sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || ""));
+    persist(list);
+    try { await window.SUPABASE.insert("events", data).catch(() => {}); } catch (e) {}
+    addToast(lang === "en" ? "Saved" : "已保存");
+    setEditing(null);
+    setSaving(false);
+  }
+
+  function remove(id) {
+    if (!window.confirm(lang === "en" ? "Delete this event?" : "确认删除此日程？")) return;
+    const list = events.filter(e => e.id !== id);
+    persist(list);
+    try { window.SUPABASE.remove("events", id).catch(() => {}); } catch (e) {}
+    addToast(lang === "en" ? "Deleted" : "已删除");
+  }
+
+  function priorityBadge(p) {
+    const opt = PRIORITY_OPTIONS.find(o => o[0] === p);
+    if (!opt) return null;
+    const label = lang === "en" ? opt[1] : opt[2];
+    const color = p === 1 ? "var(--brick)" : p === 2 ? "var(--accent)" : "var(--ink-3)";
+    return <span className="chip" style={{ background: color + "18", color, border: "none" }}>{label}</span>;
+  }
+
+  return (
+    <div>
+      <SectionHeader eyebrow="Calendar" title={lang === "en" ? "Manage events" : "管理日程"} action={
+        <button className="btn btn-primary btn-sm" onClick={() => setEditing({ title: "", date: "", startTime: "", endTime: "", location: "", people: "", priority: 2, description: "", repeat: "none" })}>
+          <Icon.plus /> {lang === "en" ? "Add event" : "添加日程"}
+        </button>
+      } />
+      {events.length === 0 ? (
+        <div style={{ padding: 48, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
+          {lang === "en" ? "No events yet." : "暂无日程。"}
+        </div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>{lang === "en" ? "Date" : "日期"}</th>
+              <th>{lang === "en" ? "Time" : "时间"}</th>
+              <th style={{ width: 100 }}>{lang === "en" ? "Repeat" : "重复"}</th>
+              <th>{lang === "en" ? "Title" : "标题"}</th>
+              <th>{lang === "en" ? "Location" : "地点"}</th>
+              <th>{lang === "en" ? "Priority" : "优先级"}</th>
+              <th style={{ width: 80 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map(e => (
+              <tr key={e.id}>
+                <td style={{ fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink-2)" }}>{e.date}</td>
+                <td style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-3)" }}>{e.startTime || "—"}</td>
+                <td style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--mono)" }}>{e.repeat && e.repeat !== "none" ? REPEAT_OPTIONS.find(([v]) => v === e.repeat)?.[lang === "en" ? 1 : 2] : "—"}</td>
+                <td style={{ fontWeight: 500, fontSize: 13.5 }}>{e.title}</td>
+                <td style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{e.location || "—"}</td>
+                <td>{priorityBadge(e.priority)}</td>
+                <td style={{ textAlign: "right" }}>
+                  <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...e })}><Icon.edit /></button>
+                  <button className="btn btn-text btn-sm" onClick={() => remove(e.id)} style={{ color: "var(--danger)" }}><Icon.trash /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {editing && (
+        <EventFormModal data={editing} onSave={save} onClose={() => setEditing(null)} saving={saving} />
+      )}
+    </div>
+  );
+}
+
+function EventFormModal({ data, onSave, onClose, saving }) {
+  const { lang } = useApp();
+  const [form, setForm] = useState(data);
+  const isNew = !data.id;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{isNew ? (lang === "en" ? "New event" : "新增日程") : (lang === "en" ? "Edit event" : "编辑日程")}</h3>
+          <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className="label">{lang === "en" ? "Date *" : "日期 *"}</label>
+              <input className="input" type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">{lang === "en" ? "Priority" : "优先级"}</label>
+              <select className="select" value={form.priority} onChange={e => setForm({ ...form, priority: Number(e.target.value) })}>
+                {PRIORITY_OPTIONS.map(([v, en, cn]) => <option key={v} value={v}>{lang === "en" ? en : cn}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ height: 12 }} />
+          <label className="label">{lang === "en" ? "Title *" : "标题 *"}</label>
+          <input className="input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Lab meeting" />
+          <div style={{ height: 12 }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className="label">{lang === "en" ? "Start time" : "开始时间"}</label>
+              <input className="input" type="time" value={form.startTime || ""} onChange={e => setForm({ ...form, startTime: e.target.value })} />
+            </div>
+            <div>
+              <label className="label">{lang === "en" ? "End time" : "结束时间"}</label>
+              <input className="input" type="time" value={form.endTime || ""} onChange={e => setForm({ ...form, endTime: e.target.value })} />
+            </div>
+          </div>
+          <div style={{ height: 12 }} />
+          <label className="label">{lang === "en" ? "Repeat" : "重复"}</label>
+          <select className="select" value={form.repeat || "none"} onChange={e => setForm({ ...form, repeat: e.target.value })}>
+            {REPEAT_OPTIONS.map(([v, en, cn]) => <option key={v} value={v}>{lang === "en" ? en : cn}</option>)}
+          </select>
+          <div style={{ height: 12 }} />
+          <label className="label">{lang === "en" ? "Location" : "地点"}</label>
+          <input className="input" value={form.location || ""} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Room 401" />
+          <div style={{ height: 12 }} />
+          <label className="label">{lang === "en" ? "People" : "人员"}</label>
+          <input className="input" value={form.people || ""} onChange={e => setForm({ ...form, people: e.target.value })} placeholder="e.g. All members" />
+          <div style={{ height: 12 }} />
+          <label className="label">{lang === "en" ? "Description" : "描述"}</label>
+          <textarea className="textarea" value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} style={{ minHeight: 64 }} />
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onSave(form)} disabled={saving || !form.title || !form.date}>
+            {saving ? "…" : <><Icon.check /> {lang === "en" ? "Save" : "保存"}</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Pages ─────────────────────────────────────────────────────────────────────
 
 function AdminPages() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
+
+  // Load persisted home content from localStorage
+  useState(() => {
+    try {
+      const stored = localStorage.getItem("yuanlab.home");
+      if (stored) { Object.assign(D.home || (D.home = {}), JSON.parse(stored)); }
+    } catch (e) {}
+  });
+
+  const [heroEn, setHeroEn] = useState(D.home?.hero?.en || "");
+  const [heroCn, setHeroCn] = useState(D.home?.hero?.cn || "");
+  const [joinLeadEn, setJoinLeadEn] = useState(D.home?.joinLead?.en || "");
+  const [joinLeadCn, setJoinLeadCn] = useState(D.home?.joinLead?.cn || "");
   const [missionEn, setMissionEn] = useState(D.lab.mission.en);
   const [missionCn, setMissionCn] = useState(D.lab.mission.cn);
+
+  function save() {
+    if (!D.home) D.home = {};
+    D.home.hero = { en: heroEn, cn: heroCn };
+    D.home.joinLead = { en: joinLeadEn, cn: joinLeadCn };
+    D.lab.mission.en = missionEn;
+    D.lab.mission.cn = missionCn;
+    try { localStorage.setItem("yuanlab.home", JSON.stringify(D.home)); } catch (e) {}
+    addToast(lang === "en" ? "Saved" : "已保存");
+  }
+
   return (
     <div>
-      <SectionHeader eyebrow="Pages" title={lang === "en" ? "Edit page content" : "编辑页面内容"} action={null} />
-      <div className="card">
-        <h4 style={{ marginBottom: 16 }}>{lang === "en" ? "Lab mission · homepage" : "课题组使命 · 首页"}</h4>
+      <SectionHeader eyebrow="Pages" title={lang === "en" ? "Edit page content" : "编辑页面内容"} action={
+        <button className="btn btn-primary btn-sm" onClick={save}>
+          <Icon.check /> {lang === "en" ? "Save all" : "全部保存"}
+        </button>
+      } />
+
+      {/* Hero headline */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <h4 style={{ marginBottom: 16 }}>{lang === "en" ? "Home · Hero headline" : "首页 · 主标题"}</h4>
+        <label className="label">English</label>
+        <textarea className="textarea" value={heroEn} onChange={e => setHeroEn(e.target.value)} style={{ minHeight: 64 }} />
+        <div style={{ height: 12 }} />
+        <label className="label">中文</label>
+        <textarea className="textarea" value={heroCn} onChange={e => setHeroCn(e.target.value)} style={{ minHeight: 64 }} />
+      </div>
+
+      {/* Lab mission */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <h4 style={{ marginBottom: 16 }}>{lang === "en" ? "Home · Lab mission" : "首页 · 课题组使命"}</h4>
         <label className="label">English</label>
         <textarea className="textarea" value={missionEn} onChange={e => setMissionEn(e.target.value)} />
         <div style={{ height: 12 }} />
         <label className="label">中文</label>
         <textarea className="textarea" value={missionCn} onChange={e => setMissionCn(e.target.value)} />
-        <div style={{ marginTop: 14, textAlign: "right" }}>
-          <button className="btn btn-primary btn-sm" onClick={() => { D.lab.mission.en = missionEn; D.lab.mission.cn = missionCn; addToast(lang === "en" ? "Saved" : "已保存"); }}>
-            <Icon.check /> {lang === "en" ? "Save" : "保存"}
-          </button>
-        </div>
+      </div>
+
+      {/* Join Us lead */}
+      <div className="card">
+        <h4 style={{ marginBottom: 16 }}>{lang === "en" ? "Join Us · lead text" : "招生 · 引导文字"}</h4>
+        <label className="label">English</label>
+        <textarea className="textarea" value={joinLeadEn} onChange={e => setJoinLeadEn(e.target.value)} style={{ minHeight: 64 }} />
+        <div style={{ height: 12 }} />
+        <label className="label">中文</label>
+        <textarea className="textarea" value={joinLeadCn} onChange={e => setJoinLeadCn(e.target.value)} style={{ minHeight: 64 }} />
       </div>
     </div>
   );
@@ -1627,4 +2161,260 @@ function AdminUsers() {
   );
 }
 
-Object.assign(window, { ResourcesPage, AdminPage });
+// ── Messages inbox ─────────────────────────────────────────────────────────────
+
+function AdminMessages() {
+  const { lang, addToast } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+
+  function loadLocalMessages() {
+    try { return JSON.parse(localStorage.getItem("yuanlab.messages") || "[]"); } catch (e) { return []; }
+  }
+
+  async function loadMessages() {
+    setLoading(true);
+    const local = loadLocalMessages();
+    const all = [...local];
+    try {
+      const db = await window.SUPABASE.query("messages", { order: "created_at.desc", limit: 500 });
+      if (db && db.length > 0) {
+        const seen = new Set(local.map(m => m.id || m._localId));
+        for (const m of db) {
+          const id = m.id || "";
+          if (!seen.has(id)) {
+            all.push({
+              id, name: m.name, email: m.email,
+              subject: m.subject, body: m.body,
+              createdAt: m.created_at,
+            });
+            seen.add(id);
+          }
+        }
+      }
+    } catch (e) {}
+    all.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    setMessages(all);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadMessages(); }, []);
+
+  async function removeMsg(id) {
+    if (!window.confirm(lang === "en" ? "Delete this message?" : "确认删除此留言？")) return;
+    const local = loadLocalMessages();
+    const filtered = local.filter(m => (m.id || m._localId) !== id);
+    try { localStorage.setItem("yuanlab.messages", JSON.stringify(filtered)); } catch (e) {}
+    setMessages(prev => prev.filter(m => (m.id || m._localId) !== id));
+    try { await window.SUPABASE.remove("messages", id); } catch (e) {}
+  }
+
+  return (
+    <div>
+      <SectionHeader eyebrow="Messages" title={lang === "en" ? "Contact form inbox" : "联系表单留言箱"} action={
+        <button className="btn btn-ghost btn-sm" onClick={loadMessages} disabled={loading}>
+          {loading ? (lang === "en" ? "Loading…" : "加载中…") : (lang === "en" ? "Refresh" : "刷新")}
+        </button>
+      } />
+      {messages.length === 0 && !loading && (
+        <div style={{ padding: 48, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
+          {lang === "en" ? "No messages yet." : "暂无留言。"}
+        </div>
+      )}
+      {loading && messages.length === 0 && (
+        <div style={{ padding: 48, textAlign: "center", color: "var(--ink-3)" }}>
+          {lang === "en" ? "Loading messages…" : "加载留言中…"}
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {messages.map((m, i) => (
+          <div key={m.id || i} style={{ borderBottom: "1px solid var(--line)", padding: "16px 0" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
+                  <a href={"mailto:" + m.email} style={{ fontSize: 12.5, color: "var(--accent)", fontFamily: "var(--mono)" }}>{m.email}</a>
+                  {m.createdAt && (
+                    <span style={{ fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--mono)", marginLeft: "auto" }}>
+                      {m.createdAt.slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+                {m.subject && (
+                  <div style={{ fontSize: 13, color: "var(--ink-2)", fontWeight: 500, marginBottom: 4 }}>
+                    {m.subject}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                <button className="btn btn-text btn-sm" onClick={() => setExpanded(expanded === (m.id || i) ? null : (m.id || i))}>
+                  {expanded === (m.id || i) ? (lang === "en" ? "Hide" : "收起") : (lang === "en" ? "View" : "查看")}
+                </button>
+                <button className="btn btn-text btn-sm" onClick={() => removeMsg(m.id)} style={{ color: "var(--danger)" }}>
+                  <Icon.trash />
+                </button>
+              </div>
+            </div>
+            {expanded === (m.id || i) && (
+              <div style={{ marginTop: 10, padding: 12, background: "var(--bg-2)", borderRadius: "var(--radius)", fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                {m.body || (lang === "en" ? "(No content)" : "（无内容）")}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { ResourcesPage, AdminPage, AdminJoinUs, AdminMessages, AdminCalendar });
+
+// ── Join Us positions ─────────────────────────────────────────────────────────
+
+function AdminJoinUs() {
+  const { lang, addToast } = useApp();
+  const D = window.LAB_DATA;
+
+  // Load persisted data
+  useState(() => {
+    try {
+      const stored = localStorage.getItem("yuanlab.joinUs");
+      if (stored) { Object.assign(D.joinUs, JSON.parse(stored)); }
+    } catch (e) {}
+  });
+
+  const [itemsEn, setItemsEn] = useState([...D.joinUs.en]);
+  const [itemsCn, setItemsCn] = useState([...D.joinUs.cn]);
+  const [editing, setEditing] = useState(null); // { index, title, body, titleCn, bodyCn } | null
+  const [saving, setSaving] = useState(false);
+
+  function persist(data) {
+    D.joinUs = data;
+    try { localStorage.setItem("yuanlab.joinUs", JSON.stringify(data)); } catch (e) {}
+  }
+
+  function savePosition() {
+    if (!editing || !editing.title) return;
+    setSaving(true);
+    const newEn = [...itemsEn];
+    const newCn = [...itemsCn];
+    const entry = { title: editing.title, body: editing.body };
+    const entryCn = { title: editing.titleCn || editing.title, body: editing.bodyCn || editing.body };
+    if (editing.index !== null && editing.index !== undefined) {
+      newEn[editing.index] = entry;
+      newCn[editing.index] = entryCn;
+    } else {
+      newEn.push(entry);
+      newCn.push(entryCn);
+    }
+    const data = { en: newEn, cn: newCn };
+    setItemsEn(newEn);
+    setItemsCn(newCn);
+    persist(data);
+    addToast(lang === "en" ? "Saved" : "已保存");
+    setEditing(null);
+    setSaving(false);
+  }
+
+  function remove(index) {
+    if (!window.confirm(lang === "en" ? "Delete this position?" : "确认删除此职位？")) return;
+    const newEn = itemsEn.filter((_, i) => i !== index);
+    const newCn = itemsCn.filter((_, i) => i !== index);
+    setItemsEn(newEn);
+    setItemsCn(newCn);
+    persist({ en: newEn, cn: newCn });
+    addToast(lang === "en" ? "Deleted" : "已删除");
+  }
+
+  return (
+    <div>
+      <SectionHeader eyebrow="Join Us" title={lang === "en" ? "Manage positions" : "管理招生信息"} action={
+        <button className="btn btn-primary btn-sm" onClick={() => setEditing({ index: null, title: "", body: "", titleCn: "", bodyCn: "" })}>
+          <Icon.plus /> {lang === "en" ? "Add position" : "添加职位"}
+        </button>
+      } />
+
+      {itemsEn.length === 0 ? (
+        <div style={{ padding: 48, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
+          {lang === "en" ? "No positions yet. Click \"Add position\" to get started." : "暂无职位信息，点击「添加职位」开始。"}
+        </div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th style={{ width: "18%" }}>{lang === "en" ? "Title (EN)" : "英文标题"}</th>
+              <th style={{ width: "24%" }}>{lang === "en" ? "Description (EN)" : "英文描述"}</th>
+              <th style={{ width: "18%" }}>{lang === "en" ? "Title (CN)" : "中文标题"}</th>
+              <th style={{ width: "24%" }}>{lang === "en" ? "Description (CN)" : "中文描述"}</th>
+              <th style={{ width: 80 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {itemsEn.map((item, i) => (
+              <tr key={i}>
+                <td style={{ fontWeight: 500, fontSize: 13 }}>{item.title}</td>
+                <td style={{ fontSize: 12.5, color: "var(--ink-2)", maxWidth: 200 }}>{item.body.length > 70 ? item.body.slice(0, 70) + "…" : item.body}</td>
+                <td style={{ fontWeight: 500, fontSize: 13 }}>{itemsCn[i]?.title || "—"}</td>
+                <td style={{ fontSize: 12.5, color: "var(--ink-2)", maxWidth: 200 }}>{(itemsCn[i]?.body?.length > 70 ? itemsCn[i].body.slice(0, 70) + "…" : itemsCn[i]?.body) || "—"}</td>
+                <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  <button className="btn btn-text btn-sm" onClick={() => setEditing({ index: i, title: item.title, body: item.body, titleCn: itemsCn[i]?.title || "", bodyCn: itemsCn[i]?.body || "" })}>
+                    <Icon.edit />
+                  </button>
+                  <button className="btn btn-text btn-sm" onClick={() => remove(i)} style={{ color: "var(--danger)" }}>
+                    <Icon.trash />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {editing && (
+        <EditJoinPositionModal
+          item={editing}
+          onSave={savePosition}
+          onClose={() => setEditing(null)}
+          saving={saving}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditJoinPositionModal({ item, onSave, onClose, saving }) {
+  const { lang } = useApp();
+  const [form, setForm] = useState(item);
+  const isNew = item.index === null || item.index === undefined;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
+        <div className="modal-header">
+          <h3>{isNew ? (lang === "en" ? "New position" : "新增职位") : (lang === "en" ? "Edit position" : "编辑职位")}</h3>
+          <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
+        </div>
+        <div className="modal-body">
+          <label className="label">Title (English)</label>
+          <input className="input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. PhD students (2026)" />
+          <div style={{ height: 12 }} />
+          <label className="label">Description (English)</label>
+          <textarea className="textarea" value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} style={{ minHeight: 80 }} />
+          <div style={{ height: 16 }} />
+          <label className="label">Title (中文)</label>
+          <input className="input" value={form.titleCn} onChange={e => setForm({ ...form, titleCn: e.target.value })} placeholder="例如：博士研究生（2026 级）" />
+          <div style={{ height: 12 }} />
+          <label className="label">Description (中文)</label>
+          <textarea className="textarea" value={form.bodyCn} onChange={e => setForm({ ...form, bodyCn: e.target.value })} style={{ minHeight: 80 }} />
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>{lang === "en" ? "Cancel" : "取消"}</button>
+          <button className="btn btn-primary btn-sm" onClick={onSave} disabled={saving || !form.title}>
+            {saving ? "…" : <><Icon.check /> {lang === "en" ? "Save" : "保存"}</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

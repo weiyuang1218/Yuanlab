@@ -15,11 +15,7 @@ function HomePage() {
             {D.lab.affiliation[lang]}
           </div>
           <h1 style={{ maxWidth: "20ch", marginBottom: 32 }}>
-            {lang === "en" ? (
-              <>Where traditional medicine <em style={{ fontStyle: "italic", color: "var(--accent)" }}> meets </em> molecular oncology.</>
-            ) : (
-              <>传统中医药<em style={{ fontStyle: "italic", color: "var(--accent)" }}>与</em> 现代分子肿瘤学的碰撞。</>
-            )}
+            {D.home?.hero?.[lang] || (lang === "en" ? "Where traditional medicine meets molecular oncology." : "传统中医药与现代分子肿瘤学的碰撞。")}
           </h1>
           <p className="lead" style={{ maxWidth: "65ch", marginBottom: 40 }}>
             {D.lab.mission[lang]}
@@ -64,6 +60,18 @@ function HomePage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* This Week */}
+      <section style={{ padding: "56px 0", borderBottom: "1px solid var(--line)" }}>
+        <div className="container">
+          <SectionHeader eyebrow="03 / Agenda" title={lang === "en" ? "This week in the lab" : "本周实验室"} action={
+            <button className="btn btn-text btn-sm" onClick={() => setRoute("calendar")}>
+              {t.home.viewAll} <Icon.arrow />
+            </button>
+          } />
+          <ThisWeekPreview events={D.events} members={D.members} lang={lang} />
         </div>
       </section>
 
@@ -121,7 +129,7 @@ function HomePage() {
       {/* Featured pubs */}
       <section style={{ padding: "0 0 80px" }}>
         <div className="container">
-          <SectionHeader eyebrow="03 / Selected" title={t.home.sectionPubs} action={
+          <SectionHeader eyebrow="04 / Selected" title={t.home.sectionPubs} action={
             <button className="btn btn-text btn-sm" onClick={() => setRoute("publications")}>
               {t.home.viewAll} <Icon.arrow />
             </button>
@@ -157,6 +165,108 @@ function PubRow({ pub, index }) {
         )}
       </div>
     </article>
+  );
+}
+
+// ── Homepage weekly agenda ──
+function ThisWeekPreview({ events, members, lang }) {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const nextWeek = new Date(today);
+  nextWeek.setDate(nextWeek.getDate() + 6);
+  const nextWeekStr = nextWeek.toISOString().slice(0, 10);
+
+  // Build date->events map for the week (simple recurring expansion)
+  function getWeekEvents() {
+    const map = {};
+    const add = (dateStr, e) => { if (!map[dateStr]) map[dateStr] = []; map[dateStr].push(e); };
+    function parseLocalDate(s) { const p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+    const todayLocal = parseLocalDate(todayStr);
+    const nextWeekLocal = parseLocalDate(nextWeekStr);
+    events.forEach(e => {
+      if (!e.repeat || e.repeat === "none") {
+        if (e.date >= todayStr && e.date <= nextWeekStr) add(e.date, e);
+      } else {
+        const p = e.date.split("-");
+        let cur = new Date(+p[0], +p[1] - 1, +p[2]);
+        for (let i = 0; i < 366; i++) {
+          if (cur > nextWeekLocal) break;
+          if (cur >= todayLocal) {
+            const ds = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}-${String(cur.getDate()).padStart(2,"0")}`;
+            add(ds, { ...e, date: ds });
+          }
+          if (e.repeat === "daily") cur.setDate(cur.getDate() + 1);
+          else if (e.repeat === "weekly") cur.setDate(cur.getDate() + 7);
+          else if (e.repeat === "biweekly") cur.setDate(cur.getDate() + 14);
+          else if (e.repeat === "monthly") cur.setMonth(cur.getMonth() + 1);
+          else break;
+        }
+      }
+    });
+    // Add birthdays this week
+    const y = today.getFullYear();
+    members.forEach(m => {
+      if (!m.birthday) return;
+      const bd = y + "-" + m.birthday;
+      if (bd >= todayStr && bd <= nextWeekStr) {
+        add(bd, { id: "bday_" + m.id, title: "🎂 " + (lang === "en" ? m.name : (m.nameCn || m.name)), date: bd, startTime: "", location: "", priority: 3, repeat: "none", _isBirthday: true });
+      }
+    });
+    return map;
+  }
+
+  const weekMap = getWeekEvents();
+  const days = [];
+  for (let d = new Date(today.getFullYear(), today.getMonth(), today.getDate()); d <= nextWeek; d.setDate(d.getDate() + 1)) {
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const dayEvents = (weekMap[ds] || []).sort((a, b) => (a.startTime || "99").localeCompare(b.startTime || "99"));
+    const isToday = ds === todayStr;
+    const dayLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    days.push({ dateStr: ds, label: dayLabel, events: dayEvents, isToday });
+  }
+
+  // Priority color helper
+  function pc(p) { return p === 1 ? "var(--brick)" : p === 2 ? "var(--accent)" : "var(--ink-3)"; }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {days.map(d => (
+        <div key={d.dateStr} style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "8px 12px", background: d.isToday ? "var(--accent-soft)" : "transparent",
+          borderRadius: "var(--radius)", border: d.isToday ? "1px solid var(--accent-soft)" : "1px solid transparent",
+        }}>
+          {/* Date label */}
+          <div style={{
+            minWidth: 100, fontFamily: "var(--mono)", fontSize: 11.5,
+            color: d.isToday ? "var(--accent-2)" : "var(--ink-2)", fontWeight: d.isToday ? 600 : 400,
+          }}>
+            {d.isToday ? (lang === "en" ? "Today" : "今天") : ""}
+            {d.isToday ? " · " : ""}{d.label}
+          </div>
+          {/* Events */}
+          <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {d.events.length === 0 && (
+              <span style={{ fontSize: 12.5, color: "var(--ink-3)", fontStyle: "italic" }}>
+                {lang === "en" ? "—" : "—"}
+              </span>
+            )}
+            {d.events.map((e, i) => (
+              <span key={e.id + "_" + i} style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "2px 8px", borderRadius: 100,
+                background: e._isBirthday ? "oklch(0.93 0.06 60 / 0.5)" : pc(e.priority) + "18",
+                color: e._isBirthday ? "var(--brick)" : pc(e.priority),
+                fontSize: 12, fontWeight: 500, whiteSpace: "nowrap",
+              }}>
+                {e.startTime && <span style={{ fontFamily: "var(--mono)", fontSize: 10, opacity: 0.7 }}>{e.startTime}</span>}
+                {e.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -212,9 +322,9 @@ function JoinPage() {
       <div className="eyebrow" style={{ marginBottom: 16 }}>Join Us · 招生</div>
       <h1 style={{ marginBottom: 24 }}>{lang === "en" ? "We are hiring." : "我们正在招生。"}</h1>
       <p className="lead" style={{ marginBottom: 56 }}>
-        {lang === "en"
+        {D.home?.joinLead?.[lang] || (lang === "en"
           ? "Yuan Lab is recruiting curious, persistent scientists who want to work at the boundary of cancer biology and integrative medicine."
-          : "袁富文课题组招聘对肿瘤生物学与中西医结合交叉领域抱有持续好奇心的研究者。"}
+          : "袁富文课题组招聘对肿瘤生物学与中西医结合交叉领域抱有持续好奇心的研究者。")}
       </p>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {items.map((item, i) => (
@@ -260,6 +370,12 @@ function ContactPage() {
         subject: form.subject,
         body: form.body,
       });
+      // Also persist locally for fallback when Supabase is unavailable
+      try {
+        const stored = JSON.parse(localStorage.getItem("yuanlab.messages") || "[]");
+        stored.unshift({ id: Date.now().toString(36), name: form.name, email: form.email, subject: form.subject, body: form.body, createdAt: new Date().toISOString() });
+        localStorage.setItem("yuanlab.messages", JSON.stringify(stored));
+      } catch (e) {}
       setSent(true);
       setForm({ name: "", email: "", subject: "", body: "" });
       addToast(lang === "en" ? "Message sent!" : "消息已发送！");

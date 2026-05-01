@@ -82,6 +82,7 @@ function App() {
               {route === "research"     && <ResearchPage />}
               {route === "publications" && <PublicationsPage />}
               {route === "resources"    && <ResourcesPage />}
+              {route === "calendar"     && <CalendarPage />}
               {route === "join"         && <JoinPage />}
               {route === "contact"      && <ContactPage />}
             </>
