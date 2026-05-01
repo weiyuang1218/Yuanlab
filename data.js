@@ -130,18 +130,25 @@ window.SUPABASE.loadAll = async function () {
       }));
     }
 
+    function normalizeResourceCategory(category) {
+      if (category === "Protocols") return "Internal Protocols";
+      if (category === "Reference Protocols") return "External Protocols";
+      return category || "";
+    }
+
     // Resources — map DB field names (title, file_url, file_type) to frontend names
     if (resources && resources.length > 0) {
       window.LAB_DATA.resources = resources.map(r => ({
         id: r.id,
         name: r.title || r.name || "",
-        category: r.category || "",
+        category: normalizeResourceCategory(r.category),
         type: r.file_type || r.type || "",
         size: r.size || "",
         url: r.file_url || r.url || "",
         uploader: r.uploader || "",
         downloads: r.downloads || 0,
         uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : (r.created_at ? r.created_at.slice(0, 10) : ""),
+        description: r.description || "",
         // Literature PPT extra fields
         presenter: r.presenter || "",
         paperTitle: r.paper_title || "",
@@ -298,10 +305,10 @@ window.LAB_DATA = {
   projects: [],
 
   resources: [
-    { id: "f1",  category: "Protocols",         name: "RNA-seq library prep · Yuanlab v3.2",              type: "PDF",  size: "1.4 MB",  uploaded: "2026-04-10", uploader: "Yuang Wei",     downloads: 23 },
-    { id: "f2",  category: "Protocols",         name: "CRISPR-Cas13d guide design SOP",                   type: "DOCX", size: "320 KB",  uploaded: "2026-03-21", uploader: "Siliang Wang", downloads: 41 },
-    { id: "f3",  category: "Protocols",         name: "Mouse xenograft — castration model",               type: "PDF",  size: "880 KB",  uploaded: "2026-02-08", uploader: "Yunxiao Qiao", downloads: 17 },
-    { id: "f4",  category: "Protocols",         name: "ChIP-seq for AR · cross-linking optimized",        type: "PDF",  size: "1.1 MB",  uploaded: "2026-01-15", uploader: "Chuang Xie",  downloads: 28 },
+    { id: "f1",  category: "Internal Protocols", name: "RNA-seq library prep · Yuanlab v3.2",             type: "PDF",  size: "1.4 MB",  uploaded: "2026-04-10", uploader: "Yuang Wei",     downloads: 23 },
+    { id: "f2",  category: "Internal Protocols", name: "CRISPR-Cas13d guide design SOP",                  type: "DOCX", size: "320 KB",  uploaded: "2026-03-21", uploader: "Siliang Wang", downloads: 41 },
+    { id: "f3",  category: "Internal Protocols", name: "Mouse xenograft — castration model",              type: "PDF",  size: "880 KB",  uploaded: "2026-02-08", uploader: "Yunxiao Qiao", downloads: 17 },
+    { id: "f4",  category: "Internal Protocols", name: "ChIP-seq for AR · cross-linking optimized",       type: "PDF",  size: "1.1 MB",  uploaded: "2026-01-15", uploader: "Chuang Xie",  downloads: 28 },
     { id: "f5",  category: "Literature PPT",    name: "Adv Sci 2025 — L14-8 ferroptosis in CRPC",         type: "PPTX", size: "12 MB",   uploaded: "2026-04-22", uploader: "Xinyi Xu",     downloads: 9  },
     { id: "f6",  category: "Literature PPT",    name: "Cell Death Discov 2025 — Saikosaponin-D / PIM1",   type: "PPTX", size: "18 MB",   uploaded: "2026-04-15", uploader: "Minghuang Xu", downloads: 12 },
     { id: "f7",  category: "Literature PPT",    name: "Nat Chem Biol 2022 — Cas13d Ctsl SARS-CoV-2",      type: "PPTX", size: "9.4 MB",  uploaded: "2026-03-08", uploader: "Chunmei Zhou", downloads: 18 },

@@ -149,7 +149,6 @@ function PubRow({ pub, index }) {
         <p style={{ fontSize: 13, color: "var(--ink-3)", margin: "4px 0 0", fontStyle: "italic" }}>{pub.journal}{pub.volume ? " · " + pub.volume : ""}</p>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-        {pub.tag && <span className="chip accent">{pub.tag}</span>}
         {pub.doi && (
           <a href={"https://doi.org/" + pub.doi} target="_blank" rel="noopener noreferrer"
             className="btn btn-text btn-sm" style={{ fontSize: 12 }}>

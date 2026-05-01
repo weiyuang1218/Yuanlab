@@ -172,7 +172,6 @@ function MemberModal({ member, onClose }) {
 function PublicationsPage() {
   const { lang, t } = useApp();
   const D = window.LAB_DATA;
-  const [filter, setFilter] = useState("all");
   const [year, setYear] = useState("all");
   const [q, setQ] = useState("");
 
@@ -180,7 +179,6 @@ function PublicationsPage() {
 
   const filtered = useMemo(() => {
     return D.publications.filter(p => {
-      if (filter === "featured" && !p.featured) return false;
       if (year !== "all" && p.year !== year) return false;
       if (q) {
         const s = q.toLowerCase();
@@ -188,7 +186,7 @@ function PublicationsPage() {
       }
       return true;
     });
-  }, [filter, year, q]);
+  }, [year, q]);
 
   // group by year
   const grouped = useMemo(() => {
@@ -215,16 +213,6 @@ function PublicationsPage() {
           </span>
           <input className="input" placeholder={t.pubs.searchPlaceholder} value={q} onChange={e => setQ(e.target.value)}
             style={{ paddingLeft: 36 }} />
-        </div>
-        <div style={{ display: "flex", gap: 4, padding: 3, background: "var(--bg-2)", borderRadius: 4, border: "1px solid var(--line)" }}>
-          {[["all", t.pubs.all], ["featured", t.pubs.featured]].map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} className="btn btn-sm" style={{
-              background: filter === k ? "var(--bg)" : "transparent",
-              border: filter === k ? "1px solid var(--line)" : "1px solid transparent",
-              color: filter === k ? "var(--ink)" : "var(--ink-2)",
-              boxShadow: filter === k ? "var(--shadow-sm)" : "none",
-            }}>{l}</button>
-          ))}
         </div>
         <select className="select" value={year} onChange={e => setYear(e.target.value === "all" ? "all" : Number(e.target.value))} style={{ width: "auto", minWidth: 120 }}>
           <option value="all">{lang === "en" ? "All years" : "全部年份"}</option>
