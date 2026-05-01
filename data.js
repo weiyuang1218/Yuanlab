@@ -62,46 +62,18 @@ window.SUPABASE = {
     return res.ok;
   },
 
-  async _getJWT() {
-    if (this._cachedJWT) return this._cachedJWT;
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=anonymous`, {
-        method: "POST",
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Content-Type": "application/json"
-        },
-        body: "{}"
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.access_token) {
-          this._cachedJWT = data.access_token;
-          return this._cachedJWT;
-        }
-      }
-    } catch (e) {}
-    return SUPABASE_KEY;
-  },
-
   async uploadFile(bucket, path, file) {
-    const token = await this._getJWT();
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
       method: "POST",
       headers: {
         "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${token}`,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": file.type || "application/octet-stream",
         "x-upsert": "true",
       },
       body: file,
     });
-    if (!res.ok) {
-      let detail = "";
-      try { detail = await res.text(); } catch (_) {}
-      console.error(`[Supabase Storage] upload failed — HTTP ${res.status} — bucket: ${bucket}, path: ${path}`, detail);
-      throw new Error("Upload failed: " + res.status);
-    }
+    if (!res.ok) throw new Error("Upload failed: " + res.status);
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
 };
