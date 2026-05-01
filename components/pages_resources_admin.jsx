@@ -1106,7 +1106,13 @@ function EditMemberModal({ member, onSave, onClose, saving }) {
     try {
       const safeName = file.name.replace(/\s+/g, "_");
       const path = `members/${m.id || "new"}_${Date.now()}_${safeName}`;
-      const photoUrl = await window.SUPABASE.uploadFile("lab-images", path, file);
+      const dataUrl = await resizeImageToDataUrl(file, 400);
+      let photoUrl = dataUrl;
+      try {
+        photoUrl = await window.SUPABASE.uploadFile("lab-images", path, file);
+      } catch (e) {
+        console.warn("[EditMemberModal] Storage upload failed, using local data URL:", e.message);
+      }
       setM(prev => ({ ...prev, photo_url: photoUrl }));
       addToast(lang === "en" ? "Photo uploaded" : "照片已上传");
     } catch (e) {
