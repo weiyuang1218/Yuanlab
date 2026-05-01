@@ -237,6 +237,25 @@ function ToastStack() {
 }
 
 // ---------- Admin-uploadable image ----------
+function resizeImageToDataUrl(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Image load failed")); };
+    img.src = objectUrl;
+  });
+}
+
 function loadImageStore() {
   try {
     return JSON.parse(localStorage.getItem("yuanlab.images") || "{}");
@@ -252,16 +271,18 @@ function saveImageStore(images) {
 function AdminImage({ slot, label, style, imgStyle, placeholderStyle, children }) {
   const { user, lang, addToast, dbReady } = useApp();
   const [url, setUrl] = useState(() => {
+    const dbUrl = window.LAB_DATA.images && window.LAB_DATA.images[slot];
     const stored = loadImageStore();
-    return stored[slot] || (window.LAB_DATA.images && window.LAB_DATA.images[slot]) || "";
+    return dbUrl || stored[slot] || "";
   });
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
   const canUpload = user.role === "admin";
 
   useEffect(() => {
+    const dbUrl = window.LAB_DATA.images && window.LAB_DATA.images[slot];
     const stored = loadImageStore();
-    const nextUrl = stored[slot] || (window.LAB_DATA.images && window.LAB_DATA.images[slot]) || "";
+    const nextUrl = dbUrl || stored[slot] || "";
     if (nextUrl && nextUrl !== url) setUrl(nextUrl);
   }, [slot, dbReady]);
 
@@ -270,11 +291,19 @@ function AdminImage({ slot, label, style, imgStyle, placeholderStyle, children }
     setUploading(true);
     try {
       const safeName = file.name.replace(/\s+/g, "_");
-      const nextUrl = await window.SUPABASE.uploadFile("lab-images", `${slot}/${Date.now()}_${safeName}`, file);
+      // Always build a local data URL first so display works even if Storage is unavailable
+      const dataUrl = await resizeImageToDataUrl(file, 1200);
+      let nextUrl = dataUrl;
+      try {
+        nextUrl = await window.SUPABASE.uploadFile("lab-images", `${slot}/${Date.now()}_${safeName}`, file);
+      } catch (e) {
+        console.warn("[AdminImage] Storage upload failed, using local data URL:", e.message);
+      }
       const images = { ...loadImageStore(), [slot]: nextUrl };
       if (!window.LAB_DATA.images) window.LAB_DATA.images = {};
       window.LAB_DATA.images[slot] = nextUrl;
       saveImageStore(images);
+      // Always persist to DB so image survives across devices/browsers
       window.SUPABASE.insert("resources", {
         title: slot,
         category: "Site Images",
@@ -332,4 +361,4 @@ function SectionHeader({ eyebrow, title, action }) {
 }
 
 // expose
-Object.assign(window, { Icon, Logo, Nav, Footer, LoginModal, ToastStack, SectionHeader, AdminImage, AppCtx, useApp });
+Object.assign(window, { Icon, Logo, Nav, Footer, LoginModal, ToastStack, SectionHeader, AdminImage, AppCtx, useApp, resizeImageToDataUrl });
