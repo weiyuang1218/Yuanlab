@@ -19,9 +19,7 @@ const RESOURCE_CATEGORY_OPTIONS = [
   "Literature PPT",
   RESOURCE_CATEGORIES.databases,
   "Duty Roster",
-  "Lab Meeting",
   "Reagent Inventory",
-  "Reading Group",
 ];
 
 function normalizeResourceCategory(category) {
