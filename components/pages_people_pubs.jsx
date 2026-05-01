@@ -1,10 +1,25 @@
 // People + Publications
 
 function PeoplePage() {
-  const { lang, t, addToast } = useApp();
+  const { lang, t, addToast, dbReady } = useApp();
   const D = window.LAB_DATA;
   const [selected, setSelected] = useState(null);
   const [imageRev, setImageRev] = useState(0);
+
+  // Apply locally-stored member photos after each DB load (covers Supabase-unavailable case)
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("yuanlab.memberPhotos") || "{}");
+      let changed = false;
+      D.members.forEach((m, i) => {
+        if (stored[m.id] && !m.photo_url) {
+          D.members[i] = { ...D.members[i], photo_url: stored[m.id] };
+          changed = true;
+        }
+      });
+      if (changed) setImageRev(r => r + 1);
+    } catch (e) {}
+  }, [dbReady]);
 
   // Split by active field (DB-driven) — fall back to D.alumni for seed data
   function memberSortValue(m) {
@@ -37,11 +52,26 @@ function PeoplePage() {
     if (!file) return;
     try {
       const safeName = file.name.replace(/\s+/g, "_");
-      const photoUrl = await window.SUPABASE.uploadFile("lab-images", `members/${member.id}_${Date.now()}_${safeName}`, file);
+      // Build local data URL first — works even if Supabase Storage is unavailable
+      const dataUrl = await resizeImageToDataUrl(file, 400);
+      let photoUrl = dataUrl;
+      try {
+        photoUrl = await window.SUPABASE.uploadFile("lab-images", `members/${member.id}_${Date.now()}_${safeName}`, file);
+      } catch (e) {
+        console.warn("[MemberPhoto] Storage upload failed, using local data URL:", e.message);
+      }
+      // Update in-memory member
       const index = D.members.findIndex(m => m.id === member.id);
       if (index >= 0) D.members[index] = { ...D.members[index], photo_url: photoUrl };
+      // Persist to localStorage so photo survives page refresh
+      try {
+        const stored = JSON.parse(localStorage.getItem("yuanlab.memberPhotos") || "{}");
+        stored[member.id] = photoUrl;
+        localStorage.setItem("yuanlab.memberPhotos", JSON.stringify(stored));
+      } catch (e) {}
+      // Always write URL to DB (even data URL) for cross-device persistence
       if (isUUID(member.id)) {
-        await window.SUPABASE.update("members", member.id, { photo_url: photoUrl });
+        window.SUPABASE.update("members", member.id, { photo_url: photoUrl }).catch(() => {});
       }
       setImageRev(r => r + 1);
       addToast(lang === "en" ? "Photo uploaded" : "照片已上传");
