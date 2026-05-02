@@ -111,12 +111,13 @@ window.SUPABASE = {
 // 成功后触发 window.dispatchEvent(new Event("labdata:updated"))
 window.SUPABASE.loadAll = async function () {
   try {
-    const [allMembers, publications, news, projects, resources] = await Promise.all([
-      window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc" }), // load ALL members
+    const [allMembers, publications, news, projects, resources, accounts] = await Promise.all([
+      window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc" }),
       window.SUPABASE.query("publications", { order: "year.desc" }),
       window.SUPABASE.query("news", { order: "published_at.desc", limit: 10 }),
       window.SUPABASE.query("projects", { order: "start_year.desc" }),
       window.SUPABASE.query("resources", { order: "created_at.desc" }),
+      window.SUPABASE.query("accounts", { order: "username.asc" }),
     ]);
 
     function mapMember(m) {
@@ -235,6 +236,26 @@ window.SUPABASE.loadAll = async function () {
     }
     if (projects && projects.length > 0) {
       window.LAB_DATA.projects = projects;
+    }
+
+    // Accounts — merge from Supabase
+    if (accounts && accounts.length > 0) {
+      const existingAcc = window.LAB_DATA.accounts;
+      const accUsernames = new Set(existingAcc.map(a => a.username));
+      accounts.forEach(a => {
+        const mapped = {
+          username: a.username, password: a.password || "",
+          role: a.role || "member", name: a.name || a.username,
+          nameCn: a.name_cn || "",
+        };
+        const idx = existingAcc.findIndex(e => e.username === a.username);
+        if (idx >= 0) existingAcc[idx] = { ...existingAcc[idx], ...mapped };
+        else if (!accUsernames.has(a.username)) {
+          existingAcc.push(mapped);
+          accUsernames.add(a.username);
+        }
+      });
+      window.LAB_DATA.accounts = existingAcc;
     }
 
     // Cache populated image URLs to localStorage for fast loading on next visit
@@ -491,6 +512,21 @@ try {
       if (idx >= 0) window.LAB_DATA.resources[idx] = s;
       else if (!seedIds.has(s.id)) window.LAB_DATA.resources.push(s);
     });
+  }
+} catch (e) {}
+
+try {
+  const a = localStorage.getItem("yuanlab.accounts");
+  if (a) {
+    const stored = JSON.parse(a);
+    const existingAcc = window.LAB_DATA.accounts;
+    const usernames = new Set(existingAcc.map(x => x.username));
+    stored.forEach(s => {
+      const idx = existingAcc.findIndex(e => e.username === s.username);
+      if (idx >= 0) existingAcc[idx] = s;
+      else if (!usernames.has(s.username)) { existingAcc.push(s); usernames.add(s.username); }
+    });
+    window.LAB_DATA.accounts = existingAcc;
   }
 } catch (e) {}
 try {
