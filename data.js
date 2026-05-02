@@ -150,12 +150,24 @@ window.SUPABASE.loadAll = async function () {
     }
 
     if (publications && publications.length > 0) {
-      window.LAB_DATA.publications = publications.map(p => ({
-        id: p.id, year: p.year, title: p.title,
-        authors: p.authors, journal: p.journal,
-        volume: "", tag: p.tags ? p.tags[0] : "",
-        featured: p.featured, doi: p.doi,
-      }));
+      const existing = window.LAB_DATA.publications;
+      const existingIds = new Set(existing.map(p => p.id));
+      publications.forEach(p => {
+        const mapped = {
+          id: p.id, year: p.year, title: p.title,
+          authors: p.authors, journal: p.journal,
+          volume: "", tag: p.tags ? p.tags[0] : "",
+          featured: p.featured, doi: p.doi,
+        };
+        const idx = existing.findIndex(e => e.id === p.id);
+        if (idx >= 0) {
+          existing[idx] = { ...existing[idx], ...mapped };
+        } else if (!existingIds.has(p.id)) {
+          existing.push(mapped);
+          existingIds.add(p.id);
+        }
+      });
+      window.LAB_DATA.publications = existing;
     }
 
     function normalizeResourceCategory(category) {
@@ -176,39 +188,61 @@ window.SUPABASE.loadAll = async function () {
           }, {})
       };
 
-      window.LAB_DATA.resources = resources.filter(r => r.category !== "Site Images").map(r => ({
-        id: r.id,
-        name: r.title || r.name || "",
-        category: normalizeResourceCategory(r.category),
-        type: r.file_type || r.type || "",
-        size: r.size || "",
-        url: r.file_url || r.url || "",
-        uploader: r.uploader || "",
-        downloads: r.downloads || 0,
-        uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : (r.created_at ? r.created_at.slice(0, 10) : ""),
-        description: r.description || "",
-        // Literature PPT extra fields
-        presenter: r.presenter || "",
-        paperTitle: r.paper_title || "",
-        researchField: r.research_field || "",
-        presentationDate: r.presentation_date || "",
-        source: r.source || "",
-      }));
+      // Resources — merge with existing seed/localStorage data by ID, don't replace
+      const existingR = window.LAB_DATA.resources;
+      const existingRIds = new Set(existingR.map(r => r.id));
+      resources.filter(r => r.category !== "Site Images").forEach(r => {
+        const mapped = {
+          id: r.id, name: r.title || r.name || "",
+          category: normalizeResourceCategory(r.category),
+          type: r.file_type || r.type || "", size: r.size || "",
+          url: r.file_url || r.url || "", uploader: r.uploader || "",
+          downloads: r.downloads || 0,
+          uploaded: r.uploaded_at ? r.uploaded_at.slice(0, 10) : (r.created_at ? r.created_at.slice(0, 10) : ""),
+          description: r.description || "",
+          presenter: r.presenter || "", paperTitle: r.paper_title || "",
+          researchField: r.research_field || "", presentationDate: r.presentation_date || "",
+          source: r.source || "",
+        };
+        const idx = existingR.findIndex(e => e.id === r.id);
+        if (idx >= 0) { existingR[idx] = { ...existingR[idx], ...mapped }; }
+        else if (!existingRIds.has(r.id)) { existingR.push(mapped); existingRIds.add(r.id); }
+      });
+      window.LAB_DATA.resources = existingR;
 
     }
 
     if (news && news.length > 0) {
-      window.LAB_DATA.news = news.map(n => ({
-        date: n.published_at ? n.published_at.slice(0, 10) : "",
-        en: n.content || n.title || "",
-        cn: n.content_cn || n.title_cn || "",
-        pinned: n.pinned,
-        type: n.type,
-      }));
+      const existingNews = window.LAB_DATA.news;
+      const existingDates = new Set(existingNews.map(n => n.date + "|" + n.en));
+      news.forEach(n => {
+        const mapped = {
+          date: n.published_at ? n.published_at.slice(0, 10) : "",
+          en: n.content || n.title || "",
+          cn: n.content_cn || n.title_cn || "",
+          pinned: n.pinned, type: n.type,
+        };
+        const key = mapped.date + "|" + mapped.en;
+        const idx = existingNews.findIndex(e => (e.date + "|" + e.en) === key);
+        if (idx >= 0) {
+          existingNews[idx] = { ...existingNews[idx], ...mapped };
+        } else if (!existingDates.has(key)) {
+          existingNews.push(mapped);
+          existingDates.add(key);
+        }
+      });
+      window.LAB_DATA.news = existingNews;
     }
     if (projects && projects.length > 0) {
       window.LAB_DATA.projects = projects;
     }
+
+    // Cache populated image URLs to localStorage for fast loading on next visit
+    try {
+      const imgStore = JSON.parse(localStorage.getItem("yuanlab.images") || "{}");
+      Object.assign(imgStore, window.LAB_DATA.images || {});
+      localStorage.setItem("yuanlab.images", JSON.stringify(imgStore));
+    } catch (e) {}
 
     window.dispatchEvent(new Event("labdata:updated"));
   } catch (e) {
@@ -424,15 +458,41 @@ try {
 } catch (e) {}
 try {
   const p = localStorage.getItem("yuanlab.publications");
-  if (p) window.LAB_DATA.publications = JSON.parse(p);
+  if (p) {
+    const stored = JSON.parse(p);
+    const seedKeys = new Set(window.LAB_DATA.publications.map(x => x.doi || x.id));
+    stored.forEach(s => {
+      const key = s.doi || s.id;
+      const idx = window.LAB_DATA.publications.findIndex(e => (e.doi || e.id) === key);
+      if (idx >= 0) window.LAB_DATA.publications[idx] = s;
+      else if (!seedKeys.has(key)) window.LAB_DATA.publications.push(s);
+    });
+  }
 } catch (e) {}
 try {
   const n = localStorage.getItem("yuanlab.news");
-  if (n) window.LAB_DATA.news = JSON.parse(n);
+  if (n) {
+    const stored = JSON.parse(n);
+    const seedKeys = new Set(window.LAB_DATA.news.map(x => x.date + "|" + x.en));
+    stored.forEach(s => {
+      const key = s.date + "|" + s.en;
+      const idx = window.LAB_DATA.news.findIndex(e => (e.date + "|" + e.en) === key);
+      if (idx >= 0) window.LAB_DATA.news[idx] = s;
+      else if (!seedKeys.has(key)) window.LAB_DATA.news.push(s);
+    });
+  }
 } catch (e) {}
 try {
   const r = localStorage.getItem("yuanlab.resources");
-  if (r) window.LAB_DATA.resources = JSON.parse(r);
+  if (r) {
+    const stored = JSON.parse(r);
+    const seedIds = new Set(window.LAB_DATA.resources.map(x => x.id));
+    stored.forEach(s => {
+      const idx = window.LAB_DATA.resources.findIndex(e => e.id === s.id);
+      if (idx >= 0) window.LAB_DATA.resources[idx] = s;
+      else if (!seedIds.has(s.id)) window.LAB_DATA.resources.push(s);
+    });
+  }
 } catch (e) {}
 try {
   const mem = localStorage.getItem("yuanlab.members");
