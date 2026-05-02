@@ -2141,13 +2141,56 @@ function AdminUsers() {
   const { lang, addToast } = useApp();
   const D = window.LAB_DATA;
   const [users, setUsers] = useState(D.accounts.filter(a => a.role !== "guest"));
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  function persist(list) {
+    D.accounts = list;
+    setUsers(list.filter(a => a.role !== "guest"));
+    try { localStorage.setItem("yuanlab.accounts", JSON.stringify(list)); } catch (e) {}
+  }
+
+  async function save(form) {
+    setSaving(true);
+    const list = [...D.accounts];
+    if (form._remove) {
+      const idx = list.findIndex(a => a.username === form.username);
+      if (idx >= 0) list.splice(idx, 1);
+      persist(list);
+      try { await window.SUPABASE.remove("accounts", form.username); } catch (e) {}
+      addToast(lang === "en" ? "User removed" : "用户已移除");
+    } else {
+      const payload = {
+        username: form.username, password: form.password,
+        role: form.role, name: form.name, name_cn: form.nameCn || "",
+      };
+      const idx = list.findIndex(a => a.username === form.username);
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...form };
+        try { await window.SUPABASE.update("accounts", form.username, payload); } catch (e) {}
+      } else {
+        list.push({ ...form });
+        try { await window.SUPABASE.insert("accounts", payload); } catch (e) {}
+      }
+      persist(list);
+      addToast(lang === "en" ? "User saved" : "用户已保存");
+    }
+    setEditing(null);
+    setSaving(false);
+  }
+
   return (
     <div>
       <SectionHeader eyebrow="Users" title={lang === "en" ? "User accounts" : "用户账号"} action={
-        <button className="btn btn-primary btn-sm" onClick={() => addToast("(Demo) Invite user")}>
+        <button className="btn btn-primary btn-sm" onClick={() => setEditing({ username: "", password: "", name: "", nameCn: "", role: "member" })}>
           <Icon.plus /> {lang === "en" ? "Invite" : "邀请"}
         </button>
       } />
+      {users.length === 0 ? (
+        <div style={{ padding: 48, textAlign: "center", color: "var(--ink-3)", border: "1px dashed var(--line-2)", borderRadius: 4 }}>
+          {lang === "en" ? "No users yet." : "暂无用户。"}
+        </div>
+      ) : (
       <table className="table">
         <thead><tr><th>Username</th><th>Name</th><th>Role</th><th></th></tr></thead>
         <tbody>
@@ -2161,19 +2204,107 @@ function AdminUsers() {
                 </span>
               </td>
               <td style={{ textAlign: "right" }}>
-                <button className="btn btn-text btn-sm"><Icon.edit /></button>
-                <button className="btn btn-text btn-sm" onClick={() => { setUsers(prev => prev.filter(x => x.username !== u.username)); addToast("Removed " + u.username); }} style={{ color: "var(--danger)" }}><Icon.trash /></button>
+                <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...u })}><Icon.edit /></button>
+                <button className="btn btn-text btn-sm" onClick={() => setEditing({ ...u, _remove: true })} style={{ color: "var(--danger)" }}><Icon.trash /></button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      )}
+
+      {editing && (
+        <UserFormModal
+          data={editing}
+          onSave={save}
+          onClose={() => setEditing(null)}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
 
-// ── Messages inbox ─────────────────────────────────────────────────────────────
+function UserFormModal({ data, onSave, onClose, saving }) {
+  const { lang } = useApp();
+  const isNew = !data._remove && !data.password && !data.username;
+  const isDelete = !!data._remove;
+  const [form, setForm] = useState({ ...data });
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{isDelete ? (lang === "en" ? "Remove user" : "删除用户")
+            : isNew ? (lang === "en" ? "Invite user" : "邀请用户")
+            : (lang === "en" ? "Edit user" : "编辑用户")}</h3>
+          <button className="btn btn-text" onClick={onClose}><Icon.close /></button>
+        </div>
+        {isDelete ? (
+          <div className="modal-body">
+            <p style={{ fontSize: 14, marginBottom: 16 }}>
+              {lang === "en"
+                ? "Are you sure you want to remove user "
+                : "确认删除用户 "}<strong>{data.name || data.username}</strong>?
+            </p>
+          </div>
+        ) : (
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className="label">{lang === "en" ? "Username *" : "用户名 *"}</label>
+              <input className="input" value={form.username}
+                onChange={e => set("username", e.target.value)}
+                disabled={!isNew}
+                placeholder="e.g. zhangsan" />
+            </div>
+            <div>
+              <label className="label">{lang === "en" ? "Password *" : "密码 *"}</label>
+              <input className="input" type="password" value={form.password}
+                onChange={e => set("password", e.target.value)}
+                placeholder="•••••" />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className="label">{lang === "en" ? "Name" : "姓名（英）"}</label>
+              <input className="input" value={form.name}
+                onChange={e => set("name", e.target.value)}
+                placeholder="e.g. San Zhang" />
+            </div>
+            <div>
+              <label className="label">{lang === "en" ? "Name (CN)" : "中文姓名"}</label>
+              <input className="input" value={form.nameCn || ""}
+                onChange={e => set("nameCn", e.target.value)}
+                placeholder="张三" />
+            </div>
+          </div>
+          <div>
+            <label className="label">{lang === "en" ? "Role" : "角色"}</label>
+            <select className="select" value={form.role} onChange={e => set("role", e.target.value)}>
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        )}
+        <div className="modal-footer">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>
+            {lang === "en" ? "Cancel" : "取消"}
+          </button>
+          <button className={isDelete ? "btn btn-danger btn-sm" : "btn btn-primary btn-sm"}
+            onClick={() => onSave(form)}
+            disabled={saving || (isNew && (!form.username || !form.password))}>
+            {saving ? "…" : isDelete
+              ? (lang === "en" ? "Remove" : "删除")
+              : <><Icon.check /> {lang === "en" ? "Save" : "保存"}</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function AdminMessages() {
   const { lang, addToast } = useApp();
   const [messages, setMessages] = useState([]);
