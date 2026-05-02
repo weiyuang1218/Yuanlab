@@ -404,27 +404,11 @@ window.LAB_DATA = {
     { id: "p15", year: 2017, authors: "Yuan F, Zhang Y, Ma L, Cheng Q, Li G, Tong T", title: "Enhanced NOLC1 promotes cell senescence and represses hepatocellular carcinoma cell proliferation by disturbing the organization of nucleolus", journal: "Aging Cell", volume: "16(4): 726–737", tag: "First", featured: true, doi: "10.1111/acel.12602" }
   ],
 
-  news: [
-    { date: "2026-03-02", en: "Our paper on Ezetimibe-engineered L14-8 inducing ferroptosis in advanced PCa is out in Advanced Science.", cn: "实验室关于依折麦布工程化分子 L14-8 诱导前列腺癌铁死亡的论文发表于 Advanced Science。" },
-    { date: "2025-11-20", en: "We are recruiting 2026 PhD students — see Join Us.", cn: "课题组 2026 级博士招生进行中，详见 Join Us。" }
-  ],
+  news: [],
 
   projects: [],
 
-  resources: [
-    { id: "f1",  category: "Internal Protocols", name: "RNA-seq library prep · Yuanlab v3.2",             type: "PDF",  size: "1.4 MB",  uploaded: "2026-04-10", uploader: "Yuang Wei",     downloads: 23 },
-    { id: "f2",  category: "Internal Protocols", name: "CRISPR-Cas13d guide design SOP",                  type: "DOCX", size: "320 KB",  uploaded: "2026-03-21", uploader: "Siliang Wang", downloads: 41 },
-    { id: "f3",  category: "Internal Protocols", name: "Mouse xenograft — castration model",              type: "PDF",  size: "880 KB",  uploaded: "2026-02-08", uploader: "Yunxiao Qiao", downloads: 17 },
-    { id: "f4",  category: "Internal Protocols", name: "ChIP-seq for AR · cross-linking optimized",       type: "PDF",  size: "1.1 MB",  uploaded: "2026-01-15", uploader: "Chuang Xie",  downloads: 28 },
-    { id: "f5",  category: "Literature PPT",    name: "Adv Sci 2025 — L14-8 ferroptosis in CRPC",         type: "PPTX", size: "12 MB",   uploaded: "2026-04-22", uploader: "Xinyi Xu",     downloads: 9  },
-    { id: "f6",  category: "Literature PPT",    name: "Cell Death Discov 2025 — Saikosaponin-D / PIM1",   type: "PPTX", size: "18 MB",   uploaded: "2026-04-15", uploader: "Minghuang Xu", downloads: 12 },
-    { id: "f7",  category: "Literature PPT",    name: "Nat Chem Biol 2022 — Cas13d Ctsl SARS-CoV-2",      type: "PPTX", size: "9.4 MB",  uploaded: "2026-03-08", uploader: "Chunmei Zhou", downloads: 18 },
-    { id: "f8",  category: "Duty Roster",       name: "Lab duty roster · 2026 Q2",                        type: "XLSX", size: "48 KB",   uploaded: "2026-03-30", uploader: "Lab Manager",  downloads: 31 },
-    { id: "f9",  category: "Lab Meeting",       name: "Group meeting schedule · 2026 Spring",             type: "XLSX", size: "32 KB",   uploaded: "2026-02-25", uploader: "Lab Manager",  downloads: 47 },
-    { id: "f10", category: "Reagent Inventory", name: "Antibody inventory · master sheet",                type: "XLSX", size: "210 KB",  uploaded: "2026-04-18", uploader: "Lab Manager",  downloads: 22 },
-    { id: "f11", category: "Reagent Inventory", name: "Plasmid bank · CRISPR vectors",                    type: "XLSX", size: "96 KB",   uploaded: "2026-04-02", uploader: "Siliang Wang", downloads: 15 },
-    { id: "f12", category: "Reading Group",     name: "Reading list · April 2026",                        type: "PDF",  size: "180 KB",  uploaded: "2026-04-01", uploader: "Fuwen Yuan",   downloads: 19 }
-  ],
+  resources: [],
 
   accounts: [
     { username: "admin",    password: "admin",          role: "admin",  name: "Fuwen Yuan", nameCn: "袁富文" },
