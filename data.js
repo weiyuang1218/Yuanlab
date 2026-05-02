@@ -429,7 +429,20 @@ window.LAB_DATA = {
 
   events: [],
 
-  joinUs: {},
+  joinUs: {   
+    en: [
+      { title: "PhD students (2026)", body: "We accept ~2 PhD students per year through the SHUTCM unified admission. Strong background in molecular biology, biochemistry, or bioinformatics; demonstrated coding (R/Python) is a plus." },
+      { title: "Master students", body: "1–2 master positions available each year. Applicants from clinical medicine, integrative medicine, biology, or pharmacology are welcome." },
+      { title: "Postdoctoral fellows", body: "Open positions in (a) AR-targeted therapy, (b) gene editing toolkits, (c) computational oncology. Competitive package; SHUTCM postdoc fellowships available." },
+      { title: "Rotation & visiting students", body: "We host short-term rotations (3–6 months) for motivated students. Email a CV and a one-paragraph statement of interest." }
+    ],
+    cn: [
+      { title: "博士研究生（2026 级）", body: "通过上海中医药大学统一招生录取，每年招收约 2 名博士。要求具有较强的分子生物学、生物化学或生物信息学背景，有 R / Python 编程经验者优先。" },
+      { title: "硕士研究生", body: "每年招收 1–2 名硕士。临床医学、中西医结合、生物学、药理学背景同学均可申请。" },
+      { title: "博士后", body: "(a) AR 靶向治疗 (b) 基因编辑工具 (c) 计算肿瘤学 三个方向均开放岗位。提供具有竞争力的待遇及上海中医药大学博士后基金支持。" },
+      { title: "轮转 / 访问学生", body: "面向 3–6 个月的短期轮转开放申请。请将 CV 和一段研究意向陈述发送至 yuanfuwen@shutcm.edu.cn。" }
+    ]
+  }
 };
 
 // Restore persisted page content from localStorage (overrides seed defaults)
