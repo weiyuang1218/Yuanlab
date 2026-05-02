@@ -289,7 +289,7 @@ window.LAB_DATA = {
       cn: "上海市浦东新区蔡伦路1200号 · 邮编 201203"
     },
     email: "yuanfuwen@shutcm.edu.cn",
-    established: 2024
+    established: 2021
   },
 
   images: {},
@@ -417,16 +417,7 @@ window.LAB_DATA = {
     }
   },
 
-  events: [
-    { id: "e1", title: "Lab meeting", date: "2026-05-04", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · progress reports", repeat: "weekly" },
-    { id: "e2", title: "Journal club", date: "2026-05-11", startTime: "15:00", endTime: "16:30", location: "Conference Room", people: "Yuang Wei, Siliang Wang", priority: 2, description: "Literature presentation and discussion", repeat: "biweekly" },
-    { id: "e3", title: "Grant deadline", date: "2026-05-20", startTime: "", endTime: "", location: "", people: "", priority: 1, description: "NSFC grant submission deadline", repeat: "none" },
-    { id: "e4", title: "Special seminar", date: "2026-05-22", startTime: "10:00", endTime: "11:30", location: "Lecture Hall", people: "Guest speaker", priority: 2, description: "CRISPR applications in cancer research", repeat: "none" },
-    { id: "e5", title: "Monthly lab cleanup", date: "2026-05-29", startTime: "16:00", endTime: "17:00", location: "Lab", people: "Everyone", priority: 3, description: "Monthly lab organization and cleanup", repeat: "monthly" },
-    { id: "e6", title: "Group meeting", date: "2026-05-25", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · data review", repeat: "weekly" },
-    { id: "e7", title: "PhD defense", date: "2026-06-05", startTime: "09:00", endTime: "12:00", location: "Academic Hall", people: "Defense committee", priority: 1, description: "PhD thesis defense", repeat: "none" },
-    { id: "e8", title: "Daily lab check", date: "2026-05-01", startTime: "09:00", endTime: "09:30", location: "Lab", people: "On-duty member", priority: 3, description: "Daily equipment and safety check", repeat: "daily" },
-  ],
+  events: [],
 
   joinUs: {
     en: [
