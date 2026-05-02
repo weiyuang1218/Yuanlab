@@ -153,10 +153,10 @@ function Footer() {
       </div>
       <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 24, borderTop: "1px solid var(--line)" }}>
         <span style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--mono)", letterSpacing: "0.04em" }}>
-          © 2024–2026 Yuan Lab · SHUTCM
+          © 2026 Yuan Lab · SHUTCM
         </span>
         <span style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--mono)", letterSpacing: "0.04em" }}>
-          v1.0 · last updated 2026-04-27
+          v1.0 · last updated 2026-05-02
         </span>
       </div>
     </footer>
