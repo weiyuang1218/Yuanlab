@@ -111,13 +111,14 @@ window.SUPABASE = {
 // 成功后触发 window.dispatchEvent(new Event("labdata:updated"))
 window.SUPABASE.loadAll = async function () {
   try {
-    const [allMembers, publications, news, projects, resources, accounts] = await Promise.all([
+    const [allMembers, publications, news, projects, resources, accounts, events] = await Promise.all([
       window.SUPABASE.query("members", { order: "sort_order.asc,joined_year.asc" }),
       window.SUPABASE.query("publications", { order: "year.desc" }),
       window.SUPABASE.query("news", { order: "published_at.desc", limit: 10 }),
       window.SUPABASE.query("projects", { order: "start_year.desc" }),
       window.SUPABASE.query("resources", { order: "created_at.desc" }),
       window.SUPABASE.query("accounts", { order: "username.asc" }),
+      window.SUPABASE.query("events", { order: "date.asc" }),
     ]);
 
     function mapMember(m) {
@@ -258,6 +259,18 @@ window.SUPABASE.loadAll = async function () {
       window.LAB_DATA.accounts = existingAcc;
     }
 
+    // Events — merge from Supabase (fallback when localStorage has gaps)
+    if (events && events.length > 0) {
+      const existingEv = window.LAB_DATA.events;
+      const evIds = new Set(existingEv.map(e => e.id));
+      events.forEach(e => {
+        const idx = existingEv.findIndex(x => x.id === e.id);
+        if (idx >= 0) existingEv[idx] = { ...existingEv[idx], ...e };
+        else if (!evIds.has(e.id)) { existingEv.push(e); evIds.add(e.id); }
+      });
+      window.LAB_DATA.events = existingEv;
+    }
+
     // Cache populated image URLs to localStorage for fast loading on next visit
     try {
       const imgStore = JSON.parse(localStorage.getItem("yuanlab.images") || "{}");
@@ -289,7 +302,7 @@ window.LAB_DATA = {
       cn: "上海市浦东新区蔡伦路1200号 · 邮编 201203"
     },
     email: "yuanfuwen@shutcm.edu.cn",
-    established: 2021
+    established: 2024
   },
 
   images: {},
@@ -391,11 +404,27 @@ window.LAB_DATA = {
     { id: "p15", year: 2017, authors: "Yuan F, Zhang Y, Ma L, Cheng Q, Li G, Tong T", title: "Enhanced NOLC1 promotes cell senescence and represses hepatocellular carcinoma cell proliferation by disturbing the organization of nucleolus", journal: "Aging Cell", volume: "16(4): 726–737", tag: "First", featured: true, doi: "10.1111/acel.12602" }
   ],
 
-  news: [],
+  news: [
+    { date: "2026-03-02", en: "Our paper on Ezetimibe-engineered L14-8 inducing ferroptosis in advanced PCa is out in Advanced Science.", cn: "实验室关于依折麦布工程化分子 L14-8 诱导前列腺癌铁死亡的论文发表于 Advanced Science。" },
+    { date: "2025-11-20", en: "We are recruiting 2026 PhD students — see Join Us.", cn: "课题组 2026 级博士招生进行中，详见 Join Us。" }
+  ],
 
   projects: [],
 
-  resources: [],
+  resources: [
+    { id: "f1",  category: "Internal Protocols", name: "RNA-seq library prep · Yuanlab v3.2",             type: "PDF",  size: "1.4 MB",  uploaded: "2026-04-10", uploader: "Yuang Wei",     downloads: 23 },
+    { id: "f2",  category: "Internal Protocols", name: "CRISPR-Cas13d guide design SOP",                  type: "DOCX", size: "320 KB",  uploaded: "2026-03-21", uploader: "Siliang Wang", downloads: 41 },
+    { id: "f3",  category: "Internal Protocols", name: "Mouse xenograft — castration model",              type: "PDF",  size: "880 KB",  uploaded: "2026-02-08", uploader: "Yunxiao Qiao", downloads: 17 },
+    { id: "f4",  category: "Internal Protocols", name: "ChIP-seq for AR · cross-linking optimized",       type: "PDF",  size: "1.1 MB",  uploaded: "2026-01-15", uploader: "Chuang Xie",  downloads: 28 },
+    { id: "f5",  category: "Literature PPT",    name: "Adv Sci 2025 — L14-8 ferroptosis in CRPC",         type: "PPTX", size: "12 MB",   uploaded: "2026-04-22", uploader: "Xinyi Xu",     downloads: 9  },
+    { id: "f6",  category: "Literature PPT",    name: "Cell Death Discov 2025 — Saikosaponin-D / PIM1",   type: "PPTX", size: "18 MB",   uploaded: "2026-04-15", uploader: "Minghuang Xu", downloads: 12 },
+    { id: "f7",  category: "Literature PPT",    name: "Nat Chem Biol 2022 — Cas13d Ctsl SARS-CoV-2",      type: "PPTX", size: "9.4 MB",  uploaded: "2026-03-08", uploader: "Chunmei Zhou", downloads: 18 },
+    { id: "f8",  category: "Duty Roster",       name: "Lab duty roster · 2026 Q2",                        type: "XLSX", size: "48 KB",   uploaded: "2026-03-30", uploader: "Lab Manager",  downloads: 31 },
+    { id: "f9",  category: "Lab Meeting",       name: "Group meeting schedule · 2026 Spring",             type: "XLSX", size: "32 KB",   uploaded: "2026-02-25", uploader: "Lab Manager",  downloads: 47 },
+    { id: "f10", category: "Reagent Inventory", name: "Antibody inventory · master sheet",                type: "XLSX", size: "210 KB",  uploaded: "2026-04-18", uploader: "Lab Manager",  downloads: 22 },
+    { id: "f11", category: "Reagent Inventory", name: "Plasmid bank · CRISPR vectors",                    type: "XLSX", size: "96 KB",   uploaded: "2026-04-02", uploader: "Siliang Wang", downloads: 15 },
+    { id: "f12", category: "Reading Group",     name: "Reading list · April 2026",                        type: "PDF",  size: "180 KB",  uploaded: "2026-04-01", uploader: "Fuwen Yuan",   downloads: 19 }
+  ],
 
   accounts: [
     { username: "admin",    password: "admin",          role: "admin",  name: "Fuwen Yuan", nameCn: "袁富文" },
@@ -414,7 +443,16 @@ window.LAB_DATA = {
     }
   },
 
-  events: [],
+  events: [
+    { id: "e1", title: "Lab meeting", date: "2026-05-04", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · progress reports", repeat: "weekly" },
+    { id: "e2", title: "Journal club", date: "2026-05-11", startTime: "15:00", endTime: "16:30", location: "Conference Room", people: "Yuang Wei, Siliang Wang", priority: 2, description: "Literature presentation and discussion", repeat: "biweekly" },
+    { id: "e3", title: "Grant deadline", date: "2026-05-20", startTime: "", endTime: "", location: "", people: "", priority: 1, description: "NSFC grant submission deadline", repeat: "none" },
+    { id: "e4", title: "Special seminar", date: "2026-05-22", startTime: "10:00", endTime: "11:30", location: "Lecture Hall", people: "Guest speaker", priority: 2, description: "CRISPR applications in cancer research", repeat: "none" },
+    { id: "e5", title: "Monthly lab cleanup", date: "2026-05-29", startTime: "16:00", endTime: "17:00", location: "Lab", people: "Everyone", priority: 3, description: "Monthly lab organization and cleanup", repeat: "monthly" },
+    { id: "e6", title: "Group meeting", date: "2026-05-25", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · data review", repeat: "weekly" },
+    { id: "e7", title: "PhD defense", date: "2026-06-05", startTime: "09:00", endTime: "12:00", location: "Academic Hall", people: "Defense committee", priority: 1, description: "PhD thesis defense", repeat: "none" },
+    { id: "e8", title: "Daily lab check", date: "2026-05-01", startTime: "09:00", endTime: "09:30", location: "Lab", people: "On-duty member", priority: 3, description: "Daily equipment and safety check", repeat: "daily" },
+  ],
 
   joinUs: {
     en: [
@@ -443,7 +481,15 @@ try {
 } catch (e) {}
 try {
   const raw = localStorage.getItem("yuanlab.events");
-  if (raw) window.LAB_DATA.events = JSON.parse(raw);
+  if (raw) {
+    const stored = JSON.parse(raw);
+    const evIds = new Set(window.LAB_DATA.events.map(x => x.id));
+    stored.forEach(s => {
+      const idx = window.LAB_DATA.events.findIndex(e => e.id === s.id);
+      if (idx >= 0) window.LAB_DATA.events[idx] = s;
+      else if (!evIds.has(s.id)) window.LAB_DATA.events.push(s);
+    });
+  }
 } catch (_) {}
 
 // Restore admin-editable content from localStorage (fallback when Supabase unavailable)
