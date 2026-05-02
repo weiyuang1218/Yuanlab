@@ -1,0 +1,178 @@
+1: Wang R, Wang C, Lu L, Yuan F, He F. Baicalin and baicalein in modulating
+tumor microenvironment for cancer treatment: A comprehensive review with future
+perspectives. Pharmacol Res. 2024 Jan;199:107032. doi:
+10.1016/j.phrs.2023.107032. Epub 2023 Dec 5. PMID: 38061594.
+
+2: Zheng Z, Yuan F, Li J, Zhu X, Jia R, Wei J, Jia F, Hou X, Zhang Z, Wang Y, Ma
+Y, Jia W, Zhao L. Gut Microbiota-Mediated Bile Acid Metabolism Regulates
+Colorectal Cancer Liver Metastasis by Altering Neutrophil Recruitment. Cancer
+Res. 2025 Nov 3;85(21):4081-4098. doi: 10.1158/0008-5472.CAN-24-4425. PMID:
+40865051.
+
+3: Wei Y, Hankey W, Xu D, Yuan F. Programmed Cell Death in Cancer. MedComm
+(2020). 2025 Aug 31;6(9):e70357. doi: 10.1002/mco2.70357. PMID: 40900810; PMCID:
+PMC12399603.
+
+4: Zhan X, Li H, Jin J, Ju X, Gao J, Chen X, Yuan F, Gu J, Xu D, Ju G. Network
+pharmacology and experimental validation to explore the role and potential
+mechanism of Liuwei Dihuang Decoction in prostate cancer. BMC Complement Med
+Ther. 2024 Jul 26;24(1):284. doi: 10.1186/s12906-024-04572-5. PMID: 39061044;
+PMCID: PMC11282786.
+
+5: Zhang Y, Song XW, Zhang N, Li XH, Wu FC, Wei YA, Xu DL, Xu LF, Yuan FW.
+Ezetimibe Engineered L14-8 Suppresses Advanced Prostate Cancer by Activating
+PLK1/TP53-SAT1-Induced Ferroptosis. Adv Sci (Weinh). 2025 Aug;12(29):e04192.
+doi: 10.1002/advs.202504192. Epub 2025 Jun 19. PMID: 40536697; PMCID:
+PMC12362806.
+
+6: Wei Y, Mei Z, Xie C, Yuan F, Xu D. Mapping the application landscape of
+artificial intelligence in prostate cancer: a global bibliometric analysis. Int
+J Surg. 2026 Feb 1;112(2):2988-3002. doi: 10.1097/JS9.0000000000003828. Epub
+2025 Nov 11. PMID: 41231645.
+
+7: Zhou Q, Wu F, Chen Y, Fu J, Zhou L, Xu Y, He F, Gong Z, Yuan F. Reynoutria
+multiflora (Thunb.) Moldenke and its ingredient suppress lethal prostate cancer
+growth by inducing CDC25B-CDK1 mediated cell cycle arrest. Bioorg Chem. 2024
+Nov;152:107731. doi: 10.1016/j.bioorg.2024.107731. Epub 2024 Aug 21. PMID:
+39180863.
+
+8: Wei J, Zheng Z, Hou X, Jia F, Yuan Y, Yuan F, He F, Hu L, Zhao L.
+Echinacoside inhibits colorectal cancer metastasis via modulating the gut
+microbiota and suppressing the PI3K/AKT signaling pathway. J Ethnopharmacol.
+2024 Jan 10;318(Pt A):116866. doi: 10.1016/j.jep.2023.116866. Epub 2023 Jul 8.
+PMID: 37429503.
+
+9: Wang SJ, Yuan F, Yin LM. Implicates of PIP5K1α in asthma-related biological
+processes: insights into mechanisms and therapeutic potential. J Transl Med.
+2025 Sep 2;23(1):978. doi: 10.1186/s12967-025-06997-z. PMID: 40898182; PMCID:
+PMC12403951.
+
+10: Xu J, Gao D, Ren C, Wang Z, Yuan F, Shen Y. Emerging implications of
+N6-methyladenosine in prostate cancer progression and treatment. Cell Death
+Discov. 2025 Aug 19;11(1):391. doi: 10.1038/s41420-025-02680-w. PMID: 40830264;
+PMCID: PMC12365139.
+
+11: Zhang X, Li X, Zhang F, Yang D, Sun Q, Wei Y, Yan R, Xu D, Lin S, Yuan F,
+Wang W. Saikosaponin‑D triggers cancer cell death by targeting the PIM1/c-Myc
+axis to reprogram oncogenic alternative splicing. Cell Death Discov. 2025 Oct
+6;11(1):427. doi: 10.1038/s41420-025-02729-w. PMID: 41052997; PMCID:
+PMC12501015.
+
+12: Zhou Q, Chen Y, Wang R, Jia F, He F, Yuan F. Advances of CRISPR-Cas13 system
+in COVID-19 diagnosis and treatment. Genes Dis. 2022 Dec 27;10(6):2414–24. doi:
+10.1016/j.gendis.2022.11.016. Epub ahead of print. PMID: 36591005; PMCID:
+PMC9793954.
+
+13: Yuan F, Hankey W, Wagner EJ, Li W, Wang Q. Alternative polyadenylation of
+mRNA and its role in cancer. Genes Dis. 2019 Oct 25;8(1):61-72. doi:
+10.1016/j.gendis.2019.10.011. PMID: 33569514; PMCID: PMC7859462.
+
+14: Chen Y, Zhou Q, Hankey W, Fang X, Yuan F. Second generation androgen
+receptor antagonists and challenges in prostate cancer treatment. Cell Death
+Dis. 2022 Jul 21;13(7):632. doi: 10.1038/s41419-022-05084-1. PMID: 35864113;
+PMCID: PMC9304354.
+
+15: Li X, Shen Y, Zhang N, Lu D, Ding S, Wu F, Song X, Zhou X, Lin S, Xu H, Wang
+Z, Yuan F. Integrative high-throughput studies to develop novel targets and
+drugs for the treatment of advanced prostate cancer. Genes Dis. 2025 Jun
+23;13(2):101732. doi: 10.1016/j.gendis.2025.101732. PMID: 41492471; PMCID:
+PMC12765100.
+
+16: Cui Z, Zeng C, Huang F, Yuan F, Yan J, Zhao Y, Zhou Y, Hankey W, Jin VX,
+Huang J, Staats HF, Everitt JI, Sempowski GD, Wang H, Dong Y, Liu SL, Wang Q.
+Cas13d knockdown of lung protease Ctsl prevents and treats SARS-CoV-2 infection.
+Nat Chem Biol. 2022 Oct;18(10):1056-1064. doi: 10.1038/s41589-022-01094-4. Epub
+2022 Jul 25. PMID: 35879545; PMCID: PMC10082993.
+
+17: Chen Z, Ye Z, Soccio RE, Nakadai T, Hankey W, Zhao Y, Huang F, Yuan F, Wang
+H, Cui Z, Sunkel B, Wu D, Dzeng RK, Thomas-Ahner JM, Huang THM, Clinton SK,
+Huang J, Lazar MA, Jin VX, Roeder RG, Wang Q. Phosphorylated MED1 links
+transcription recycling and cancer growth. Nucleic Acids Res. 2022 May
+6;50(8):4450-4463. doi: 10.1093/nar/gkac246. PMID: 35394046; PMCID: PMC9071494.
+
+18: Yuan F, Hankey W, Wu D, Wang H, Somarelli J, Armstrong AJ, Huang J, Chen Z,
+Wang Q. Molecular determinants for enzalutamide-induced transcription in
+prostate cancer. Nucleic Acids Res. 2019 Nov 4;47(19):10104-10114. doi:
+10.1093/nar/gkz790. PMID: 31501863; PMCID: PMC6821169.
+
+19: Min S, Guo M, Du J, Chen J, Shen Y, Yuan F, Wang Z, Cai Z. Potential
+application of nanodelivery systems targeting ELAVL1 in prostate cancer
+treatment. Front Oncol. 2025 Sep 1;15:1609712. doi: 10.3389/fonc.2025.1609712.
+PMID: 40958880; PMCID: PMC12433880.
+
+20: Cui MF, Chen LM, Jiang C, Ma BZ, Yuan FW, Zhao C, Liu SM. Risks associated
+with cognitive function and management strategies in the clinical use of ADT: a
+systematic review from clinical and preclinical studies. Support Care Cancer.
+2024 Jul 31;32(8):561. doi: 10.1007/s00520-024-08753-3. PMID: 39085696.
+
+21: Chen Y, Zhou Q, Zhang H, Xu L, Lu L, Shu B, Zhou L, Yuan F. Qingdai
+Decoction suppresses prostate cancer growth in lethal-stage prostate cancer
+models. J Ethnopharmacol. 2023 May 23;308:116333. doi:
+10.1016/j.jep.2023.116333. Epub 2023 Feb 28. PMID: 36863640.
+
+22: Jia F, Yu Q, Wang R, Zhao L, Yuan F, Guo H, Shen Y, He F. Optimized
+Antimicrobial Peptide Jelleine-I Derivative Br-J-I Inhibits Fusobacterium
+Nucleatum to Suppress Colorectal Cancer Progression. Int J Mol Sci. 2023 Jan
+11;24(2):1469. doi: 10.3390/ijms24021469. PMID: 36674985; PMCID: PMC9865857.
+
+23: Zheng Z, Wei J, Hou X, Jia F, Zhang Z, Guo H, Yuan F, He F, Ke Z, Wang Y,
+Zhao L. A High Hepatic Uptake of Conjugated Bile Acids Promotes Colorectal
+Cancer-Associated Liver Metastasis. Cells. 2022 Nov 28;11(23):3810. doi:
+10.3390/cells11233810. PMID: 36497071; PMCID: PMC9736302.
+
+24: Jiang Z, Hao F, Zhu F, Yuan F, Ma L, Li G, Chen J, Tong T. RSL1D1 modulates
+cell senescence and proliferation via regulation of PPARγ mRNA stability. Life
+Sci. 2022 Oct 15;307:120848. doi: 10.1016/j.lfs.2022.120848. Epub 2022 Aug 5.
+PMID: 35940221.
+
+25: Yuan F, Xu C, Li G, Tong T. Nucleolar TRF2 attenuated nucleolus stress-
+induced HCC cell-cycle arrest by altering rRNA synthesis. Cell Death Dis. 2018
+May 1;9(5):518. doi: 10.1038/s41419-018-0572-3. PMID: 29725012; PMCID:
+PMC5938709.
+
+26: Fu J, Huang D, Yuan F, Xie N, Li Q, Sun X, Zhou X, Li G, Tong T, Zhang Y.
+TRAF-interacting protein with forkhead-associated domain (TIFA) transduces DNA
+damage-induced activation of NF-κB. J Biol Chem. 2018 May 11;293(19):7268-7280.
+doi: 10.1074/jbc.RA117.001684. Epub 2018 Mar 26. PMID: 29581234; PMCID:
+PMC5950011.
+
+27: Xie N, Ma L, Zhu F, Zhao W, Tian F, Yuan F, Fu J, Huang D, Lv C, Tong T.
+Regulation of the MDM2-p53 pathway by the nucleolar protein CSIG in response to
+nucleolar stress. Sci Rep. 2016 Nov 4;6:36171. doi: 10.1038/srep36171. PMID:
+27811966; PMCID: PMC5095888.
+
+28: Cheng Q, Yuan F, Lu F, Zhang B, Chen T, Chen X, Cheng Y, Li N, Ma L, Tong T.
+CSIG promotes hepatocellular carcinoma proliferation by activating c-MYC
+expression. Oncotarget. 2015 Mar 10;6(7):4733-44. doi: 10.18632/oncotarget.2900.
+PMID: 25749381; PMCID: PMC4467111.
+
+29: Hankey W, Sunkel B, Yuan F, He H, Thomas-Ahner JM, Chen Z, Clinton SK, Huang
+J, Wang Q. Prostate Cancer Cell Phenotypes Remain Stable Following PDE5
+Inhibition in the Clinically Relevant Range. Transl Oncol. 2020
+Sep;13(9):100797. doi: 10.1016/j.tranon.2020.100797. Epub 2020 May 23. PMID:
+32454444; PMCID: PMC7248418.
+
+30: Yuan F, Cheng Q, Li G, Tong T. Nucleostemin Knockdown Sensitizes
+Hepatocellular Carcinoma Cells to Ultraviolet and Serum Starvation-Induced
+Apoptosis. PLoS One. 2015 Oct 30;10(10):e0141678. doi:
+10.1371/journal.pone.0141678. PMID: 26517370; PMCID: PMC4627730.
+
+31: Yuan F, Li G, Tong T. Nucleolar and coiled-body phosphoprotein 1 (NOLC1)
+regulates the nucleolar retention of TRF2. Cell Death Discov. 2017 Sep
+4;3:17043. doi: 10.1038/cddiscovery.2017.43. PMID: 28875039; PMCID: PMC5582526.
+
+32: Yuan F, Zhang Y, Ma L, Cheng Q, Li G, Tong T. Enhanced NOLC1 promotes cell
+senescence and represses hepatocellular carcinoma cell proliferation by
+disturbing the organization of nucleolus. Aging Cell. 2017 Aug;16(4):726-737.
+doi: 10.1111/acel.12602. Epub 2017 May 10. PMID: 28493459; PMCID: PMC5506443.
+
+33: Cheng Q, Cao X, Yuan F, Li G, Tong T. Knockdown of WWP1 inhibits growth and
+induces apoptosis in hepatoma carcinoma cells through the activation of caspase3
+and p53. Biochem Biophys Res Commun. 2014 Jun 6;448(3):248-54. doi:
+10.1016/j.bbrc.2014.04.117. Epub 2014 May 1. PMID: 24792179.
+
+34: Ma L, Zhao W, Zhu F, Yuan F, Xie N, Li T, Wang P, Tong T. Global
+Characteristics of CSIG-Associated Gene Expression Changes in Human HEK293 Cells
+and the Implications for CSIG Regulating Cell Proliferation and Senescence.
+Front Endocrinol (Lausanne). 2015 May 15;6:69. doi: 10.3389/fendo.2015.00069.
+PMID: 26029164; PMCID: PMC4432801.
