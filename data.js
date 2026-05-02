@@ -427,32 +427,9 @@ window.LAB_DATA = {
     }
   },
 
-  events: [
-    { id: "e1", title: "Lab meeting", date: "2026-05-04", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · progress reports", repeat: "weekly" },
-    { id: "e2", title: "Journal club", date: "2026-05-11", startTime: "15:00", endTime: "16:30", location: "Conference Room", people: "Yuang Wei, Siliang Wang", priority: 2, description: "Literature presentation and discussion", repeat: "biweekly" },
-    { id: "e3", title: "Grant deadline", date: "2026-05-20", startTime: "", endTime: "", location: "", people: "", priority: 1, description: "NSFC grant submission deadline", repeat: "none" },
-    { id: "e4", title: "Special seminar", date: "2026-05-22", startTime: "10:00", endTime: "11:30", location: "Lecture Hall", people: "Guest speaker", priority: 2, description: "CRISPR applications in cancer research", repeat: "none" },
-    { id: "e5", title: "Monthly lab cleanup", date: "2026-05-29", startTime: "16:00", endTime: "17:00", location: "Lab", people: "Everyone", priority: 3, description: "Monthly lab organization and cleanup", repeat: "monthly" },
-    { id: "e6", title: "Group meeting", date: "2026-05-25", startTime: "14:00", endTime: "16:00", location: "Innovative Building 401", people: "All members", priority: 2, description: "Weekly group meeting · data review", repeat: "weekly" },
-    { id: "e7", title: "PhD defense", date: "2026-06-05", startTime: "09:00", endTime: "12:00", location: "Academic Hall", people: "Defense committee", priority: 1, description: "PhD thesis defense", repeat: "none" },
-    { id: "e8", title: "Daily lab check", date: "2026-05-01", startTime: "09:00", endTime: "09:30", location: "Lab", people: "On-duty member", priority: 3, description: "Daily equipment and safety check", repeat: "daily" },
-  ],
+  events: [],
 
-  joinUs: {
-    en: [
-      { title: "PhD students (2026)", body: "We accept ~2 PhD students per year through the SHUTCM unified admission. Strong background in molecular biology, biochemistry, or bioinformatics; demonstrated coding (R/Python) is a plus." },
-      { title: "Master students", body: "1–2 master positions available each year. Applicants from clinical medicine, integrative medicine, biology, or pharmacology are welcome." },
-      { title: "Postdoctoral fellows", body: "Open positions in (a) AR-targeted therapy, (b) gene editing toolkits, (c) computational oncology. Competitive package; SHUTCM postdoc fellowships available." },
-      { title: "Rotation & visiting students", body: "We host short-term rotations (3–6 months) for motivated students. Email a CV and a one-paragraph statement of interest." }
-    ],
-    cn: [
-      { title: "博士研究生（2026 级）", body: "通过上海中医药大学统一招生录取，每年招收约 2 名博士。要求具有较强的分子生物学、生物化学或生物信息学背景，有 R / Python 编程经验者优先。" },
-      { title: "硕士研究生", body: "每年招收 1–2 名硕士。临床医学、中西医结合、生物学、药理学背景同学均可申请。" },
-      { title: "博士后", body: "(a) AR 靶向治疗 (b) 基因编辑工具 (c) 计算肿瘤学 三个方向均开放岗位。提供具有竞争力的待遇及上海中医药大学博士后基金支持。" },
-      { title: "轮转 / 访问学生", body: "面向 3–6 个月的短期轮转开放申请。请将 CV 和一段研究意向陈述发送至 yuanfuwen@shutcm.edu.cn。" }
-    ]
-  }
-};
+  joinUs: {};
 
 // Restore persisted page content from localStorage (overrides seed defaults)
 try {
