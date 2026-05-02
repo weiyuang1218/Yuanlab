@@ -298,11 +298,11 @@ window.LAB_DATA = {
       cn: "聚焦激素依赖性肿瘤（尤其是进展期前列腺癌），整合核仁生物学、RNA 调控与中西医结合手段，系统解析治疗耐药的分子机制，并致力于开发中药小分子与基于 CRISPR 的肿瘤治疗新策略。"
     },
     address: {
-      en: "1200 Cailun Road, Pudong, Shanghai 201203, China",
+      en: "1200 Cailun Road, Pudong New Area, Shanghai 201203, China",
       cn: "上海市浦东新区蔡伦路1200号 · 邮编 201203"
     },
     email: "yuanfuwen@shutcm.edu.cn",
-    established: 2024
+    established: 2021
   },
 
   images: {},
