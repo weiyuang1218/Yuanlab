@@ -391,10 +391,7 @@ window.LAB_DATA = {
     { id: "p15", year: 2017, authors: "Yuan F, Zhang Y, Ma L, Cheng Q, Li G, Tong T", title: "Enhanced NOLC1 promotes cell senescence and represses hepatocellular carcinoma cell proliferation by disturbing the organization of nucleolus", journal: "Aging Cell", volume: "16(4): 726–737", tag: "First", featured: true, doi: "10.1111/acel.12602" }
   ],
 
-  news: [
-    { date: "2026-03-02", en: "Our paper on Ezetimibe-engineered L14-8 inducing ferroptosis in advanced PCa is out in Advanced Science.", cn: "实验室关于依折麦布工程化分子 L14-8 诱导前列腺癌铁死亡的论文发表于 Advanced Science。" },
-    { date: "2025-11-20", en: "We are recruiting 2026 PhD students — see Join Us.", cn: "课题组 2026 级博士招生进行中，详见 Join Us。" }
-  ],
+  news: [],
 
   projects: [],
 
