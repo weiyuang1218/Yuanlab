@@ -18,10 +18,7 @@ const RESOURCE_CATEGORY_OPTIONS = [
   RESOURCE_CATEGORIES.externalProtocols,
   "Literature PPT",
   RESOURCE_CATEGORIES.databases,
-  "Duty Roster",
-  "Lab Meeting",
   "Reagent Inventory",
-  "Reading Group",
 ];
 
 function normalizeResourceCategory(category) {
