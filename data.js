@@ -429,7 +429,7 @@ window.LAB_DATA = {
 
   events: [],
 
-  joinUs: {};
+  joinUs: {},
 
 // Restore persisted page content from localStorage (overrides seed defaults)
 try {
