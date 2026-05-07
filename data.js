@@ -131,7 +131,6 @@ window.SUPABASE.loadAll = async function () {
         year: m.joined_year ? String(m.joined_year) + "–" : "",
         active: m.active !== false, // default true if null
         education: m.education || "",
-        orcid: m.orcid || "",
         googleScholar: m.google_scholar || "",
         photo_url: m.photo_url || "",
       };
@@ -314,8 +313,8 @@ window.LAB_DATA = {
       cn: "研究员 · 博士生导师 · 上海市海外高层次人才"
     },
     bio: {
-      en: "Dr. Fuwen Yuan received his BS, MS, and PhD from Peking University Health Science Center, followed by postdoctoral training at Duke University School of Medicine. His research focuses on hormone-targeted therapy for prostate cancer and the development of gene editing technologies. He is a recipient of the U.S. Department of Defense Early Investigator Research Award and the Young Investigator Award from the European journal Biomolecules. He has led grants from the U.S. DoD Prostate Cancer Research Program and the NIH, and has participated in multiple NSFC projects. He serves on the editorial boards of Science Advances, Oncology Letters, and other international journals, and has authored over thirty SCI papers in venues including Advanced Science, PNAS and Nucleic Acids Research. He is the lead author of the monograph CSIG-NOLC1 Pathway in Cellular Senescence and Tumor Progression, selected for China's 13th Five-Year National Key Publishing Program.",
-      cn: "本硕博毕业于北京大学医学部，后于美国杜克大学医学院从事博士后研究。主要研究方向为前列腺癌激素靶向治疗及基因编辑技术的研发应用。曾获美国国防部早期研究者研究奖、欧洲 Biomolecules 杂志青年研究者奖；先后主持美国国防部前列腺癌研究基金、美国国立卫生研究院及国防部资助课题，参与多项中国国家自然科学基金项目。担任 Science Advances、Oncology Letters 等国际期刊编委及审稿人，在 Advanced Science、PNAS、Nucleic Acids Research等期刊发表 SCI 论文超三十篇。主编出版专著《CSIG-NOLC1 通路调控细胞衰老及肿瘤进程》，入选「十三五」国家重点出版规划项目青年学者优秀学术专著文库。"
+      en: "Dr. Fuwen Yuan received his BS, and PhD from Peking University Health Science Center, followed by postdoctoral training at Duke University School of Medicine. His research focuses on hormone-targeted therapy for prostate cancer and the development of gene editing technologies. He is a recipient of the U.S. Department of Defense Early Investigator Research Award and the Young Investigator Award from the European journal Biomolecules. He has led grants from the U.S. DoD Prostate Cancer Research Program and the NIH, and has participated in multiple NSFC projects. He serves on the editorial boards of Science Advances, Oncology Letters, and other international journals, and has authored over thirty SCI papers in venues including Advanced Science, PNAS and Nucleic Acids Research. He is the lead author of the monograph CSIG-NOLC1 Pathway in Cellular Senescence and Tumor Progression, selected for China's 13th Five-Year National Key Publishing Program.",
+      cn: "本博毕业于北京大学医学部，后于美国杜克大学医学院从事博士后研究。主要研究方向为前列腺癌激素靶向治疗及基因编辑技术的研发应用。曾获美国国防部早期研究者研究奖、欧洲 Biomolecules 杂志青年研究者奖；先后主持美国国防部前列腺癌研究基金、美国国立卫生研究院及国防部资助课题，参与多项中国国家自然科学基金项目。担任 Science Advances、Oncology Letters 等国际期刊编委及审稿人，在 Advanced Science、PNAS、Nucleic Acids Research等期刊发表 SCI 论文超三十篇。主编出版专著《CSIG-NOLC1 通路调控细胞衰老及肿瘤进程》，入选「十三五」国家重点出版规划项目青年学者优秀学术专著文库。"
     },
     education: [
       { year: "Postdoc", place: "Duke University School of Medicine", placeCn: "美国杜克大学医学院" },
